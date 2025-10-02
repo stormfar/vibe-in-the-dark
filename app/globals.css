@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  /* Neobrutalism Colors */
+  --neo-pink: #FF006E;
+  --neo-yellow: #FFBE0B;
+  --neo-blue: #3A86FF;
+  --neo-bg: #FFFBF5;
+  --neo-text: #000000;
+  --neo-border: #000000;
+}
+
+@theme inline {
+  --color-neo-pink: var(--neo-pink);
+  --color-neo-yellow: var(--neo-yellow);
+  --color-neo-blue: var(--neo-blue);
+  --color-neo-bg: var(--neo-bg);
+  --font-sans: var(--font-space-grotesk);
+  --font-display: var(--font-archivo-black);
+}
+
+body {
+  background: var(--neo-bg);
+  color: var(--neo-text);
+  font-family: var(--font-space-grotesk), sans-serif;
+}
+
+/* Neobrutalism utility classes */
+.neo-shadow {
+  box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1);
+}
+
+.neo-shadow-sm {
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+}
+
+.neo-shadow-lg {
+  box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 1);
+}
+
+.neo-shadow-hover {
+  box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 1);
+}
+
+.neo-border {
+  border: 4px solid var(--neo-border);
+}
+
+.neo-border-thick {
+  border: 6px solid var(--neo-border);
+}
+
+/* Shake animation for urgency */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+  20%, 40%, 60%, 80% { transform: translateX(3px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out infinite;
+}

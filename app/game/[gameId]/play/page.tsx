@@ -1,0 +1,581 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { getSocket } from '@/lib/socketClient';
+import { getFingerprint } from '@/lib/fingerprint';
+import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
+import type { Game, GameStatus, ReactionType } from '@/lib/types';
+
+const EMOJI_MAP: Record<ReactionType, string> = {
+  fire: '🔥',
+  laugh: '😂',
+  think: '🤔',
+  shock: '😱',
+  cool: '😎',
+};
+
+export default function GamePlay() {
+  const params = useParams();
+  const gameCode = params.gameId as string; // URL param is gameCode
+
+  const [participantId, setParticipantId] = useState('');
+  const [game, setGame] = useState<Game | null>(null);
+  const [prompt, setPrompt] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [currentHtml, setCurrentHtml] = useState('');
+  const [currentCss, setCurrentCss] = useState('');
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [floatingEmojis, setFloatingEmojis] = useState<{ id: string; emoji: string; x: number; y: number }[]>([]);
+  const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
+  const [votedFor, setVotedFor] = useState<string | null>(null);
+  const [fingerprint, setFingerprint] = useState<string>('');
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Get participant ID from localStorage
+    const storedData = localStorage.getItem(`game_${gameCode}`);
+    if (storedData) {
+      const { participantId: storedParticipantId } = JSON.parse(storedData);
+      setParticipantId(storedParticipantId);
+      console.log('Play page loaded. Participant:', storedParticipantId, 'GameCode:', gameCode);
+    }
+
+    // Get fingerprint for voting
+    getFingerprint().then(fp => {
+      setFingerprint(fp);
+      // Check if already voted
+      const votedKey = `voted_${gameCode}`;
+      const voted = localStorage.getItem(votedKey);
+      if (voted) {
+        setVotedFor(voted);
+      }
+    });
+  }, [gameCode]);
+
+  useEffect(() => {
+    if (!participantId || !gameCode) return;
+
+    console.log('Joining game room with gameCode:', gameCode);
+    const socket = getSocket();
+    socket.emit('game:join', { gameCode, participantId });
+
+    socket.on('game:state', (gameState: Game) => {
+      console.log('Play page received game:state:', {
+        status: gameState.status,
+        targetImageUrl: gameState.targetImageUrl,
+        startTime: gameState.startTime
+      });
+      setGame(gameState);
+
+      const participant = gameState.participants.find(p => p.id === participantId);
+      if (participant) {
+        setCurrentHtml(participant.currentCode.html);
+        setCurrentCss(participant.currentCode.css);
+        setPromptHistory(participant.promptHistory.map(p => p.prompt));
+      }
+
+      // Calculate time remaining
+      if (gameState.startTime && gameState.status === 'active') {
+        const elapsed = Date.now() - gameState.startTime;
+        const remaining = Math.max(0, gameState.duration - Math.floor(elapsed / 1000));
+        console.log('Active phase - setting time:', remaining);
+        setTimeRemaining(remaining);
+      }
+    });
+
+    socket.on('game:statusUpdate', (update: { status: GameStatus; timeRemaining?: number }) => {
+      console.log('Play page received game:statusUpdate:', update);
+
+      // Update game status
+      setGame(prev => {
+        if (!prev) return prev;
+        return { ...prev, status: update.status };
+      });
+
+      if (update.status === 'active' && update.timeRemaining !== undefined) {
+        setTimeRemaining(update.timeRemaining);
+      } else if (update.status === 'voting' || update.status === 'finished') {
+        setTimeRemaining(0);
+      }
+    });
+
+    socket.on('preview:update', (update: { participantId: string; html: string; css: string }) => {
+      if (update.participantId === participantId) {
+        setCurrentHtml(update.html);
+        setCurrentCss(update.css);
+      }
+    });
+
+    socket.on('reaction:update', (update: { participantId: string; reactions: Record<ReactionType, number> }) => {
+      if (update.participantId === participantId) {
+        // Someone reacted to this participant! Create floating emoji explosion
+        // Find which reaction type increased
+        const participant = game?.participants.find(p => p.id === participantId);
+        if (participant) {
+          for (const type of Object.keys(update.reactions) as ReactionType[]) {
+            if (update.reactions[type] > (participant.reactions[type] || 0)) {
+              // This reaction type increased - add floating emoji
+              const emoji = EMOJI_MAP[type];
+              const newEmoji = {
+                id: `${Date.now()}-${Math.random()}`,
+                emoji,
+                x: Math.random() * 80 + 10, // Random x position between 10% and 90%
+                y: Math.random() * 80 + 10, // Random y position between 10% and 90%
+              };
+              setFloatingEmojis(prev => [...prev, newEmoji]);
+
+              // Remove after animation completes
+              setTimeout(() => {
+                setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id));
+              }, 2000);
+              break; // Only add one emoji per reaction event
+            }
+          }
+        }
+      }
+    });
+
+    return () => {
+      socket.off('game:state');
+      socket.off('game:statusUpdate');
+      socket.off('preview:update');
+      socket.off('reaction:update');
+    };
+  }, [participantId, gameCode, game?.participants]);
+
+  // Timer countdown - recalculate from server time
+  useEffect(() => {
+    if (game?.status === 'active' && game?.startTime && game?.duration) {
+      const startTime = game.startTime;
+      const duration = game.duration;
+      timerRef.current = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, duration - Math.floor(elapsed / 1000));
+        setTimeRemaining(remaining);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [game?.status, game?.startTime, game?.duration]);
+
+  const handleSubmitPrompt = async () => {
+    if (!prompt.trim() || isProcessing) return;
+
+    // Check if participant has reached max prompts
+    if (game && promptHistory.length >= game.maxPrompts) {
+      toast.error(`You've reached the maximum of ${game.maxPrompts} prompts!`);
+      return;
+    }
+
+    // Check if prompt exceeds max characters
+    if (game && prompt.length > game.maxCharacters) {
+      toast.error(`Prompt exceeds ${game.maxCharacters} character limit!`);
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const response = await fetch('/api/prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameCode,
+          participantId,
+          prompt: prompt.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to process prompt');
+        setIsProcessing(false);
+        return;
+      }
+
+      const data = await response.json();
+      setCurrentHtml(data.html);
+      setCurrentCss(data.css);
+      setPromptHistory([...promptHistory, prompt.trim()]);
+      setPrompt('');
+      toast.success('Claude has spoken!');
+    } catch {
+      toast.error('Failed to process prompt');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleVote = async (targetParticipantId: string) => {
+    if (!fingerprint) return;
+
+    // Check if trying to undo vote
+    if (votedFor === targetParticipantId) {
+      try {
+        // Call DELETE endpoint to remove vote
+        const response = await fetch('/api/vote', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            gameCode,
+            voterFingerprint: fingerprint,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          toast.error(error.error || 'Failed to undo vote');
+          return;
+        }
+
+        setVotedFor(null);
+        localStorage.removeItem(`voted_${gameCode}`);
+        toast.success('Vote undone! You can vote again.');
+      } catch {
+        toast.error('Failed to undo vote');
+      }
+      return;
+    }
+
+    // Check if already voted for someone else
+    if (votedFor) return;
+
+    try {
+      const response = await fetch('/api/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameCode,
+          participantId: targetParticipantId,
+          voterFingerprint: fingerprint,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to vote');
+        return;
+      }
+
+      setVotedFor(targetParticipantId);
+      localStorage.setItem(`voted_${gameCode}`, targetParticipantId);
+      toast.success('Vote recorded!');
+    } catch {
+      toast.error('Failed to vote');
+    }
+  };
+
+  const isGameActive = game?.status === 'active';
+  const isGameOver = game?.status === 'voting' || game?.status === 'finished';
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className={`h-screen flex flex-col bg-neo-bg relative overflow-hidden ${timeRemaining <= 15 && isGameActive ? 'animate-shake' : ''}`}>
+      {/* Floating emoji explosions - bottom right */}
+      <div className="fixed bottom-8 right-8 w-64 h-64 pointer-events-none z-50">
+        <AnimatePresence>
+          {floatingEmojis.map((floatingEmoji) => (
+            <motion.div
+              key={floatingEmoji.id}
+              initial={{ opacity: 1, scale: 0, x: '50%', y: '50%' }}
+              animate={{
+                opacity: 0,
+                scale: [0, 3, 2.5, 3, 0],
+                x: `${Math.random() * 100}%`,
+                y: [`50%`, `${-100 - Math.random() * 50}%`],
+                rotate: [0, 15, -15, 10, -10, 0]
+              }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 2, ease: 'easeOut' }}
+              className="absolute text-6xl"
+            >
+              {floatingEmoji.emoji}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Game Info Header */}
+      {game && isGameActive && (
+        <div className="bg-white border-b-4 border-black p-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Badge variant="blue" className="text-lg px-4 py-2">
+              Game Code: {gameCode}
+            </Badge>
+          </div>
+          <Badge
+            variant={timeRemaining <= 15 ? 'pink' : 'blue'}
+            className={`${timeRemaining <= 15 ? 'text-3xl' : 'text-lg'} px-4 py-2 transition-all duration-300`}
+            style={timeRemaining <= 15 ? { backgroundColor: '#FF006E' } : {}}
+          >
+            {formatTime(timeRemaining)} left
+          </Badge>
+        </div>
+      )}
+
+      {/* Top section - Side by side: Target (1/3) + Preview (2/3) OR Leaderboard + Preview in voting */}
+      <div className="flex-1 p-4 flex gap-4 min-h-0 overflow-hidden">
+        {isGameActive && (
+          <>
+            {/* Target - 1/3 width */}
+            <div className="flex-[1] flex flex-col">
+              <p className="font-bold text-sm mb-2 text-gray-600">TARGET DESIGN</p>
+              <div className="flex-1 neo-border bg-white overflow-hidden">
+                {game?.targetType === 'image' ? (
+                  <img
+                    src={game?.targetImageUrl}
+                    alt="Target"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full p-6 flex items-center justify-center">
+                    <p className="text-lg font-bold text-center">
+                      {game?.targetText}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Preview - 2/3 width */}
+            <div className="flex-[2] flex flex-col">
+              <p className="font-bold text-sm mb-2">Your Beautiful Disaster</p>
+              <div className="flex-1 neo-border bg-white overflow-hidden">
+                <iframe
+                  srcDoc={`
+                    <!DOCTYPE html>
+                    <html>
+                      <head>
+                        <style>${currentCss}</style>
+                      </head>
+                      <body>${currentHtml}</body>
+                    </html>
+                  `}
+                  sandbox="allow-same-origin"
+                  className="w-full h-full border-0"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {isGameOver && (
+          <>
+            {/* Leaderboard - 1/3 width */}
+            <div className="flex-[1] flex flex-col">
+              <div className="bg-neo-yellow neo-border px-4 py-2 mb-2 flex-shrink-0">
+                <h3 className="font-black text-lg text-center">LIVE STANDINGS</h3>
+              </div>
+              <div className="overflow-y-auto space-y-2" style={{ maxHeight: '1100px' }}>
+                {game?.participants
+                  .sort((a, b) => b.voteCount - a.voteCount)
+                  .map((p, index) => {
+                    const isExpanded = expandedParticipant === p.id;
+                    return (
+                      <motion.div
+                        key={p.id}
+                        layout
+                        animate={{ zIndex: isExpanded ? 50 : 1 }}
+                        className={isExpanded ? 'fixed inset-4 z-50' : ''}
+                      >
+                        <Card
+                          className={`p-2 ${
+                            p.id === participantId ? 'bg-neo-pink border-pink-600' : 'bg-white'
+                          }`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className={`font-bold text-sm ${p.id === participantId ? 'text-white' : ''}`}>
+                                {index + 1}. {p.name}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {game?.status === 'voting' && p.id !== participantId && (
+                                  <Button
+                                    variant={votedFor === p.id ? 'yellow' : 'default'}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleVote(p.id);
+                                    }}
+                                    className="text-xs px-2 py-1 h-auto"
+                                  >
+                                    {votedFor === p.id ? '❤️ Voted' : 'Vote'}
+                                  </Button>
+                                )}
+                                <span className={`font-black ${p.id === participantId ? 'text-white' : ''}`}>
+                                  ❤️ {p.voteCount}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Preview thumbnail */}
+                            <div
+                              className={`neo-border bg-white cursor-pointer transition-all relative ${
+                                isExpanded ? 'h-[500px] hover:opacity-90' : 'h-32 hover:scale-[1.05]'
+                              }`}
+                              onClick={() => setExpandedParticipant(isExpanded ? null : p.id)}
+                            >
+                              {/* Action buttons - top right */}
+                              <div className="absolute top-1 right-1 flex gap-1 z-10 pointer-events-auto">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const code = `<!DOCTYPE html>\n<html>\n<head>\n<style>\n${p.currentCode.css}\n</style>\n</head>\n<body>\n${p.currentCode.html}\n</body>\n</html>`;
+                                    const blob = new Blob([code], { type: 'text/html' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `${p.name}-code.html`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                  }}
+                                  className="w-6 h-6 flex items-center justify-center bg-white/90 hover:bg-neo-pink hover:text-white neo-border rounded transition-colors text-xs"
+                                  title="Download Code"
+                                >
+                                  ⬇️
+                                </button>
+                              </div>
+
+                              <iframe
+                                srcDoc={`
+                                  <!DOCTYPE html>
+                                  <html>
+                                    <head>
+                                      <style>${p.currentCode.css}</style>
+                                    </head>
+                                    <body>${p.currentCode.html}</body>
+                                  </html>
+                                `}
+                                sandbox="allow-same-origin"
+                                className="w-full h-full border-0 pointer-events-none"
+                              />
+                            </div>
+                          </div>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Preview - 2/3 width */}
+            <div className="flex-[2] flex flex-col">
+              <div className="bg-neo-yellow neo-border px-4 py-2 mb-2">
+                <h3 className="font-black text-lg text-center">YOUR FINAL MASTERPIECE</h3>
+              </div>
+              <div className="flex-1 neo-border bg-white overflow-hidden">
+                <iframe
+                  srcDoc={`
+                    <!DOCTYPE html>
+                    <html>
+                      <head>
+                        <style>${currentCss}</style>
+                      </head>
+                      <body>${currentHtml}</body>
+                    </html>
+                  `}
+                  sandbox="allow-same-origin"
+                  className="w-full h-full border-0"
+                />
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Bottom section - Prompt input (only show when game is active) */}
+      {isGameActive && (
+        <div className="flex-[40] p-4 border-t-4 border-black bg-white">
+          <div className="h-full flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <label className="font-bold">
+              {isGameActive ? 'Tell Claude your dreams and watch them get interpreted weirdly' : 'Prompt Input'}
+            </label>
+            {isGameActive && game && (
+              <div className="flex gap-3 text-sm">
+                <span className={`font-bold ${promptHistory.length >= game.maxPrompts ? 'text-neo-pink' : 'text-gray-600'}`}>
+                  {promptHistory.length}/{game.maxPrompts} prompts
+                </span>
+                <span className={`font-bold ${prompt.length > game.maxCharacters ? 'text-neo-pink' : 'text-gray-600'}`}>
+                  {prompt.length}/{game.maxCharacters} chars
+                </span>
+              </div>
+            )}
+          </div>
+
+          <Textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={isGameActive ? 'Make it pink, make it pop...' : 'Waiting for game to start...'}
+            disabled={!isGameActive || isProcessing}
+            className="flex-1 mb-4"
+            maxLength={game?.maxCharacters}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmitPrompt();
+              }
+            }}
+          />
+
+          <Button
+            variant="pink"
+            onClick={handleSubmitPrompt}
+            disabled={
+              !isGameActive ||
+              !prompt.trim() ||
+              isProcessing ||
+              (game ? promptHistory.length >= game.maxPrompts : false) ||
+              (game ? prompt.length > game.maxCharacters : false)
+            }
+            className="w-full text-xl"
+          >
+            {isProcessing
+              ? 'Claude is cooking... 🪄'
+              : game && promptHistory.length >= game.maxPrompts
+              ? `Prompt limit reached (${game.maxPrompts}/${game.maxPrompts})`
+              : 'VIBE IT 🪄'}
+          </Button>
+
+          {promptHistory.length > 0 && (
+            <details className="mt-4">
+              <summary className="font-bold cursor-pointer text-sm">
+                Your chaos log ({promptHistory.length})
+              </summary>
+              <div className="mt-2 space-y-1 max-h-20 overflow-y-auto">
+                {promptHistory.slice(-3).reverse().map((p, i) => (
+                  <p key={i} className="text-xs text-gray-600 truncate">
+                    • {p}
+                  </p>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      </div>
+      )}
+    </div>
+  );
+}
