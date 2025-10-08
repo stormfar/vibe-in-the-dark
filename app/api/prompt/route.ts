@@ -77,12 +77,11 @@ export async function POST(request: NextRequest) {
 
     promptTimestamps.set(key, now);
 
-    // Process prompt with Claude (use game's custom API key if available)
+    // Process prompt with Claude
     const result = await processPrompt(
       prompt,
       participant.currentCode.html,
-      participant.currentCode.css,
-      game.anthropicApiKey
+      participant.currentCode.css
     );
 
     if (result.error) {

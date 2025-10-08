@@ -1,8 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const LITELLM_BASE_URL = 'https://litellm-oidc.holidu.com';
+const AUTH_URL = 'https://auth.holidu.com/realms/guest/protocol/openid-connect/token';
 
 const SYSTEM_PROMPT = `You are helping a participant in a coding challenge. They can only see their rendered HTML preview, not the code itself.
 
@@ -32,20 +29,77 @@ export interface ProcessPromptResult {
   error?: string;
 }
 
+// Cache for access token with expiry
+let tokenCache: { token: string; expiresAt: number } | null = null;
+
+async function getAccessToken(): Promise<string> {
+  // Return cached token if still valid (with 1 minute buffer)
+  if (tokenCache && tokenCache.expiresAt > Date.now() + 60000) {
+    return tokenCache.token;
+  }
+
+  const clientId = process.env.CLIENT_ID;
+  const clientSecret = process.env.CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('CLIENT_ID and CLIENT_SECRET environment variables must be set');
+  }
+
+  const response = await fetch(AUTH_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OAuth token fetch failed:', response.status, errorText);
+    throw new Error(`Failed to get access token: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  const token = data.access_token;
+
+  if (!token) {
+    console.error('No access_token in response:', data);
+    throw new Error('No access_token in OAuth response');
+  }
+
+  const expiresIn = data.expires_in || 3600; // Default to 1 hour if not provided
+
+  // Cache token with expiry time
+  tokenCache = {
+    token,
+    expiresAt: Date.now() + expiresIn * 1000,
+  };
+
+  console.log('OAuth token fetched successfully, expires in', expiresIn, 'seconds');
+  return token;
+}
+
 export async function processPrompt(
   userPrompt: string,
   currentHtml: string,
-  currentCss: string,
-  customApiKey?: string
+  currentCss: string
 ): Promise<ProcessPromptResult> {
-  try {
-    // Use custom API key if provided, otherwise use default
-    const client = customApiKey
-      ? new Anthropic({ apiKey: customApiKey })
-      : anthropic;
+  console.log('processPrompt called with prompt:', userPrompt);
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+  try {
+    // Get OAuth access token
+    console.log('Fetching OAuth token...');
+    const accessToken = await getAccessToken();
+    console.log('OAuth token obtained:', accessToken.substring(0, 20) + '...');
+
+    // Make direct API call to LiteLLM using Anthropic format
+    console.log('Making API request to:', `${LITELLM_BASE_URL}/v1/messages`);
+    const requestBody = {
+      model: 'claude-4-sonnet',
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: [
@@ -54,17 +108,77 @@ export async function processPrompt(
           content: `Current HTML:\n${currentHtml}\n\nCurrent CSS:\n${currentCss}\n\nUser prompt: ${userPrompt}`,
         },
       ],
+    };
+    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
+    const response = await fetch(`${LITELLM_BASE_URL}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    const content = message.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type from Claude');
+    console.log('Response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('LiteLLM API error:', response.status, errorText);
+
+      // Try to parse error message from response
+      let errorMessage = 'API error';
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error?.message || errorData.message || errorText;
+      } catch {
+        errorMessage = errorText;
+      }
+
+      // Handle specific status codes
+      if (response.status === 429) {
+        return {
+          html: currentHtml,
+          css: currentCss,
+          error: 'Claude is overwhelmed. Wait a sec.',
+        };
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        return {
+          html: currentHtml,
+          css: currentCss,
+          error: 'Authentication failed. Check LiteLLM credentials.',
+        };
+      }
+
+      return {
+        html: currentHtml,
+        css: currentCss,
+        error: `API Error (${response.status}): ${errorMessage.substring(0, 100)}`,
+      };
     }
 
-    const responseText = content.text;
+    const data = await response.json();
+    console.log('API response:', JSON.stringify(data, null, 2));
+
+    // Extract the assistant's response from Anthropic format
+    const assistantMessage = data.content?.[0]?.text;
+    if (!assistantMessage) {
+      console.error('Unexpected response format:', JSON.stringify(data, null, 2));
+      return {
+        html: currentHtml,
+        css: currentCss,
+        error: 'Unexpected response format from LiteLLM',
+      };
+    }
+
+    console.log('Assistant message:', assistantMessage);
 
     // Parse the response
-    const parsed = parseClaudeResponse(responseText);
+    const parsed = parseClaudeResponse(assistantMessage);
+    console.log('Parsed result:', parsed ? 'success' : 'failed');
 
     if (!parsed) {
       return {
@@ -78,20 +192,14 @@ export async function processPrompt(
   } catch (error: unknown) {
     console.error('Claude API error:', error);
 
-    // Handle rate limiting
-    if (error && typeof error === 'object' && 'status' in error && error.status === 429) {
-      return {
-        html: currentHtml,
-        css: currentCss,
-        error: 'Claude is overwhelmed. Wait a sec.',
-      };
-    }
+    // Extract error message
+    const errorMessage = error instanceof Error ? error.message : String(error);
 
-    // Handle other errors
+    // Return error with actual message
     return {
       html: currentHtml,
       css: currentCss,
-      error: 'Claude got confused. Try again with different words?',
+      error: `Error: ${errorMessage}`,
     };
   }
 }

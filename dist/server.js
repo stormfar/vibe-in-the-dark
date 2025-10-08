@@ -38,7 +38,6 @@ app.prepare().then(() => {
         console.log('Client connected:', socket.id);
         // Handle game join
         socket.on('game:join', ({ gameCode, participantId }) => {
-            console.log(`Participant ${participantId} joining game code ${gameCode}`);
             // Join the game room
             socket.join(gameCode);
             // Update participant socket ID
@@ -51,7 +50,6 @@ app.prepare().then(() => {
         });
         // Handle admin join
         socket.on('admin:join', (gameCode) => {
-            console.log(`Admin joining game code ${gameCode}`);
             socket.join(gameCode);
             const game = (0, gameState_1.getGame)(gameCode);
             if (game) {
@@ -65,7 +63,6 @@ app.prepare().then(() => {
         });
         // Handle voter join
         socket.on('voter:join', (gameCode) => {
-            console.log(`Voter joining game code ${gameCode}`);
             socket.join(gameCode);
             const game = (0, gameState_1.getGame)(gameCode);
             if (game) {

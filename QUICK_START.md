@@ -2,11 +2,12 @@
 
 ## Before You Begin
 
-You need an **Anthropic API key**. Get one at: https://console.anthropic.com/
-
-Add it to your `.env` file:
+You need **Holidu LiteLLM credentials**. Add them to your `.env` file:
 ```
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+CLIENT_ID=gx-vibeinthedark-litellm-client
+CLIENT_SECRET=your-client-secret-here
+NEXT_PUBLIC_WS_URL=http://localhost:3000
+NODE_ENV=development
 ```
 
 ## What to Put in "The Impossible Target" Field
@@ -95,9 +96,9 @@ Then upload using Option 2.
 - Make sure you ran `npm install`
 - Check for TypeScript errors
 
-### Claude API errors
-- Check your API key is correct in `.env`
-- Check you have credits/quota on your Anthropic account
+### LiteLLM API errors
+- Check your CLIENT_ID and CLIENT_SECRET are correct in `.env`
+- Check the LiteLLM proxy is accessible
 - Rate limiting: Wait 3 seconds between prompts
 
 ### WebSocket connection issues

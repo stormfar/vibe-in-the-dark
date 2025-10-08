@@ -14,7 +14,6 @@ export default function AdminNewGame() {
   const [targetImageUrl, setTargetImageUrl] = useState('');
   const [targetText, setTargetText] = useState('');
   const [customCode, setCustomCode] = useState('');
-  const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [duration, setDuration] = useState(300); // 5 minutes default
   const [maxPrompts, setMaxPrompts] = useState(3); // 3 prompts default
   const [maxCharacters, setMaxCharacters] = useState(1000); // 1000 characters default
@@ -55,7 +54,6 @@ export default function AdminNewGame() {
         maxPrompts: number;
         maxCharacters: number;
         customCode?: string;
-        anthropicApiKey?: string;
       } = {
         targetType,
         duration,
@@ -73,11 +71,6 @@ export default function AdminNewGame() {
       // Add custom code if provided
       if (customCode.trim()) {
         requestBody.customCode = customCode.trim().toUpperCase();
-      }
-
-      // Add API key if provided
-      if (anthropicApiKey.trim()) {
-        requestBody.anthropicApiKey = anthropicApiKey.trim();
       }
 
       const response = await fetch('/api/game/create', {
@@ -188,33 +181,6 @@ export default function AdminNewGame() {
               onChange={(e) => setCustomCode(e.target.value.toUpperCase())}
               maxLength={6}
             />
-          </div>
-
-          {/* Anthropic API Key (Optional) */}
-          <div>
-            <label className="block font-bold mb-2 text-lg">
-              Anthropic API Key (optional)
-            </label>
-            <p className="text-sm text-gray-600 mb-2">
-              Use your own Anthropic API key for this game. All participants will use this key.{' '}
-              <a
-                href="https://console.anthropic.com/settings/keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-neo-blue underline hover:text-neo-pink"
-              >
-                Get your key here →
-              </a>
-            </p>
-            <Input
-              placeholder="sk-ant-api03-..."
-              value={anthropicApiKey}
-              onChange={(e) => setAnthropicApiKey(e.target.value)}
-              type="password"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              💡 If not provided, the server&apos;s default API key will be used
-            </p>
           </div>
 
           {/* Duration Slider */}

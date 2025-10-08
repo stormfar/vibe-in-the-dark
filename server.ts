@@ -40,7 +40,6 @@ app.prepare().then(() => {
 
     // Handle game join
     socket.on('game:join', ({ gameCode, participantId }: GameJoinPayload) => {
-      console.log(`Participant ${participantId} joining game code ${gameCode}`);
 
       // Join the game room
       socket.join(gameCode);
@@ -57,7 +56,6 @@ app.prepare().then(() => {
 
     // Handle admin join
     socket.on('admin:join', (gameCode: string) => {
-      console.log(`Admin joining game code ${gameCode}`);
       socket.join(gameCode);
 
       const game = getGame(gameCode);
@@ -72,7 +70,6 @@ app.prepare().then(() => {
 
     // Handle voter join
     socket.on('voter:join', (gameCode: string) => {
-      console.log(`Voter joining game code ${gameCode}`);
       socket.join(gameCode);
 
       const game = getGame(gameCode);

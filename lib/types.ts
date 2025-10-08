@@ -45,7 +45,6 @@ export interface Game {
   duration: number;
   maxPrompts: number; // Maximum number of prompts per participant
   maxCharacters: number; // Maximum characters per prompt
-  anthropicApiKey?: string; // Optional custom API key for this game
   startTime: number | null;
   votingStartTime: number | null;
   createdAt: number;
@@ -64,7 +63,6 @@ export interface CreateGameRequest {
   maxPrompts?: number; // Optional max prompts per participant (default: 3)
   maxCharacters?: number; // Optional max characters per prompt (default: 1000)
   customCode?: string; // Optional custom game code
-  anthropicApiKey?: string; // Optional custom Anthropic API key
 }
 
 export interface CreateGameResponse {

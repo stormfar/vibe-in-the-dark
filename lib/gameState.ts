@@ -26,7 +26,6 @@ export function createGame(
   targetImageUrl?: string,
   targetText?: string,
   customCode?: string,
-  anthropicApiKey?: string,
   maxPrompts?: number,
   maxCharacters?: number
 ): Game {
@@ -49,7 +48,6 @@ export function createGame(
     duration,
     maxPrompts: maxPrompts ?? 3, // Default to 3
     maxCharacters: maxCharacters ?? 1000, // Default to 1000
-    anthropicApiKey,
     startTime: null,
     votingStartTime: null,
     createdAt: Date.now(),
@@ -70,8 +68,6 @@ export function createGame(
 // Get game by code (only method needed now)
 export function getGame(code: string): Game | undefined {
   const upperCode = code.toUpperCase();
-  console.log(`[gameState] Looking for game ${upperCode}. Total games in memory: ${games.size}`);
-  console.log(`[gameState] Available game codes:`, Array.from(games.keys()));
   return games.get(upperCode);
 }
 

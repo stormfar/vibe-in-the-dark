@@ -26,7 +26,7 @@ function generateGameCode() {
     return code;
 }
 // Create a new game
-function createGame(targetType, duration, targetImageUrl, targetText, customCode, anthropicApiKey, maxPrompts, maxCharacters) {
+function createGame(targetType, duration, targetImageUrl, targetText, customCode, maxPrompts, maxCharacters) {
     let code = (customCode === null || customCode === void 0 ? void 0 : customCode.toUpperCase()) || generateGameCode();
     // Ensure unique code
     while (games.has(code)) {
@@ -44,7 +44,6 @@ function createGame(targetType, duration, targetImageUrl, targetText, customCode
         duration,
         maxPrompts: maxPrompts !== null && maxPrompts !== void 0 ? maxPrompts : 3, // Default to 3
         maxCharacters: maxCharacters !== null && maxCharacters !== void 0 ? maxCharacters : 1000, // Default to 1000
-        anthropicApiKey,
         startTime: null,
         votingStartTime: null,
         createdAt: Date.now(),
@@ -61,8 +60,6 @@ function createGame(targetType, duration, targetImageUrl, targetText, customCode
 // Get game by code (only method needed now)
 function getGame(code) {
     const upperCode = code.toUpperCase();
-    console.log(`[gameState] Looking for game ${upperCode}. Total games in memory: ${games.size}`);
-    console.log(`[gameState] Available game codes:`, Array.from(games.keys()));
     return games.get(upperCode);
 }
 // Add participant to game

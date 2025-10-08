@@ -63,16 +63,10 @@ export default function GamePlay() {
   useEffect(() => {
     if (!participantId || !gameCode) return;
 
-    console.log('Joining game room with gameCode:', gameCode);
     const socket = getSocket();
     socket.emit('game:join', { gameCode, participantId });
 
     socket.on('game:state', (gameState: Game) => {
-      console.log('Play page received game:state:', {
-        status: gameState.status,
-        targetImageUrl: gameState.targetImageUrl,
-        startTime: gameState.startTime
-      });
       setGame(gameState);
 
       const participant = gameState.participants.find(p => p.id === participantId);
@@ -507,7 +501,7 @@ export default function GamePlay() {
 
       {/* Bottom section - Prompt input (only show when game is active) */}
       {isGameActive && (
-        <div className="flex-[40] p-4 border-t-4 border-black bg-white">
+        <div className="flex-[0.5] p-4 border-t-4 border-black bg-white">
           <div className="h-full flex flex-col">
           <div className="flex items-center justify-between mb-2">
             <label className="font-bold">

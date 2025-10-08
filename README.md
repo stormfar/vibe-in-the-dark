@@ -18,7 +18,7 @@ A real-time multiplayer web app where participants attempt to replicate a target
 
 - Node.js 20+
 - npm or yarn
-- Anthropic API key ([Get one here](https://console.anthropic.com/))
+- Holidu LiteLLM access credentials (CLIENT_ID and CLIENT_SECRET)
 
 ### Installation
 
@@ -32,9 +32,10 @@ A real-time multiplayer web app where participants attempt to replicate a target
    cp .env.example .env
    ```
 
-   Edit `.env` and add your Anthropic API key:
+   Edit `.env` and add your LiteLLM credentials:
    ```
-   ANTHROPIC_API_KEY=sk-ant-your-api-key-here
+   CLIENT_ID=gx-vibeinthedark-litellm-client
+   CLIENT_SECRET=your-client-secret-here
    NEXT_PUBLIC_WS_URL=http://localhost:3000
    NODE_ENV=development
    ```
@@ -90,7 +91,7 @@ A real-time multiplayer web app where participants attempt to replicate a target
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS v4 + Neobrutalism design system
 - **Real-time:** Socket.io (custom server)
-- **AI:** Anthropic Claude API (claude-sonnet-4-20250514)
+- **AI:** Holidu LiteLLM (claude-sonnet-4-20250514 via proxy)
 - **State:** In-memory (Map on server)
 - **Animations:** Framer Motion
 - **Voting:** FingerprintJS for one-vote-per-device
@@ -153,7 +154,8 @@ npm start      # Run production build
 
 ### Environment Variables
 
-- `ANTHROPIC_API_KEY` - Required for AI prompt processing
+- `CLIENT_ID` - Holidu LiteLLM client ID (required for AI prompt processing)
+- `CLIENT_SECRET` - Holidu LiteLLM client secret (required for AI prompt processing)
 - `NEXT_PUBLIC_WS_URL` - WebSocket server URL
 - `NODE_ENV` - development | production
 
@@ -169,7 +171,7 @@ Requires persistent server for WebSocket connections.
 - Max 20 participants per game
 - No authentication system
 - Voting is device-based (can be circumvented)
-- Claude API costs apply per prompt
+- LiteLLM API costs apply per prompt
 
 ## 📄 Licence
 
