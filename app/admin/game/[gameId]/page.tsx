@@ -9,6 +9,7 @@ import { getSocket } from '@/lib/socketClient';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
 import type { Game, GameStatusUpdateEvent, PreviewUpdateEvent, VoteUpdateEvent, ReactionUpdateEvent, WinnerDeclaredEvent } from '@/lib/types';
 
 export default function AdminGameView() {
@@ -19,6 +20,7 @@ export default function AdminGameView() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [isDisconnected, setIsDisconnected] = useState(false);
 
   useEffect(() => {
     console.log('Admin useEffect running for gameCode:', gameCode);
@@ -34,6 +36,14 @@ export default function AdminGameView() {
     socket.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
       toast.error('Failed to connect to game server');
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn('Socket disconnected:', reason);
+      // Only show BSOD if game is active and disconnect was unexpected
+      if (game && (game.status === 'active' || game.status === 'voting')) {
+        setIsDisconnected(true);
+      }
     });
 
     // If already connected, emit immediately
@@ -176,6 +186,9 @@ export default function AdminGameView() {
     });
 
     return () => {
+      socket.off('connect');
+      socket.off('connect_error');
+      socket.off('disconnect');
       socket.off('game:state');
       socket.off('game:participantJoined');
       socket.off('game:statusUpdate');
@@ -184,7 +197,7 @@ export default function AdminGameView() {
       socket.off('reaction:update');
       socket.off('game:winnerDeclared');
     };
-  }, [gameCode]);
+  }, [gameCode, game]);
 
   const handleStartGame = useCallback(async () => {
     try {
@@ -310,6 +323,11 @@ export default function AdminGameView() {
       }
     }
   }, [gameCode]);
+
+  // Show BSOD if disconnected during active game
+  if (isDisconnected) {
+    return <BlueScreenOfDeath variant="admin" />;
+  }
 
   if (!game) {
     return (

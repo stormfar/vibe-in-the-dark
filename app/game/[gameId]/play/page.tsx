@@ -10,6 +10,7 @@ import { getSocket } from '@/lib/socketClient';
 import { getFingerprint } from '@/lib/fingerprint';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
 import type { Game, GameStatus, ReactionType } from '@/lib/types';
 
 const EMOJI_MAP: Record<ReactionType, string> = {
@@ -36,6 +37,7 @@ export default function GamePlay() {
   const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
   const [votedFor, setVotedFor] = useState<string | null>(null);
   const [fingerprint, setFingerprint] = useState<string>('');
+  const [isDisconnected, setIsDisconnected] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -65,6 +67,14 @@ export default function GamePlay() {
 
     const socket = getSocket();
     socket.emit('game:join', { gameCode, participantId });
+
+    socket.on('disconnect', (reason) => {
+      console.warn('Socket disconnected:', reason);
+      // Only show BSOD if game is active and disconnect was unexpected
+      if (game && (game.status === 'active' || game.status === 'voting')) {
+        setIsDisconnected(true);
+      }
+    });
 
     socket.on('game:state', (gameState: Game) => {
       setGame(gameState);
@@ -138,12 +148,13 @@ export default function GamePlay() {
     });
 
     return () => {
+      socket.off('disconnect');
       socket.off('game:state');
       socket.off('game:statusUpdate');
       socket.off('preview:update');
       socket.off('reaction:update');
     };
-  }, [participantId, gameCode, game?.participants]);
+  }, [participantId, gameCode, game]);
 
   // Timer countdown - recalculate from server time
   useEffect(() => {
@@ -285,6 +296,11 @@ export default function GamePlay() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Show BSOD if disconnected during active game
+  if (isDisconnected) {
+    return <BlueScreenOfDeath variant="player" />;
+  }
 
   return (
     <div className={`h-screen flex flex-col bg-neo-bg relative overflow-hidden ${timeRemaining <= 15 && isGameActive ? 'animate-shake' : ''}`}>

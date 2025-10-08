@@ -10,6 +10,7 @@ import { getFingerprint } from '@/lib/fingerprint';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
 import type {
   Game,
   GameStatus,
@@ -38,6 +39,7 @@ export default function VoterView() {
   const [isLoadingFingerprint, setIsLoadingFingerprint] = useState(true);
   const [isReacting, setIsReacting] = useState(false);
   const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
+  const [isDisconnected, setIsDisconnected] = useState(false);
 
   // Fetch fingerprint
   useEffect(() => {
@@ -69,6 +71,14 @@ export default function VoterView() {
   useEffect(() => {
     const socket = getSocket();
     socket.emit('voter:join', gameCode);
+
+    socket.on('disconnect', (reason) => {
+      console.warn('Socket disconnected:', reason);
+      // Only show BSOD if game is active and disconnect was unexpected
+      if (game && (game.status === 'active' || game.status === 'voting')) {
+        setIsDisconnected(true);
+      }
+    });
 
     socket.on('game:state', (gameState: Game) => {
       setGame(gameState);
@@ -148,6 +158,7 @@ export default function VoterView() {
     });
 
     return () => {
+      socket.off('disconnect');
       socket.off('game:state');
       socket.off('game:statusUpdate');
       socket.off('vote:update');
@@ -155,7 +166,7 @@ export default function VoterView() {
       socket.off('preview:update');
       socket.off('game:winnerDeclared');
     };
-  }, [gameCode]);
+  }, [gameCode, game]);
 
   const handleVote = async (participantId: string) => {
     if (!fingerprint) return;
@@ -267,6 +278,11 @@ export default function VoterView() {
       toast.error('Failed to react');
     }
   };
+
+  // Show BSOD if disconnected during active game
+  if (isDisconnected) {
+    return <BlueScreenOfDeath variant="voter" />;
+  }
 
   if (!game) {
     return (
