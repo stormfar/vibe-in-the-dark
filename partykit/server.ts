@@ -1,4 +1,5 @@
 import type * as Party from "partykit/server";
+import { routePartykitRequest } from "partyserver";
 
 /**
  * PartyKit Server for Vibe in the Dark
@@ -94,5 +95,12 @@ export class VibeServer implements Party.Server {
 
 VibeServer satisfies Party.Worker;
 
-// Default export for PartyKit
-export default VibeServer;
+// Export for both PartyKit dev and Cloudflare Workers deployment
+export default {
+  async fetch(request: Party.Request, env: Party.FetcherEnv): Promise<Response> {
+    return (
+      (await routePartykitRequest(request, env)) ||
+      new Response("Not Found", { status: 404 })
+    );
+  }
+} satisfies Party.Worker;
