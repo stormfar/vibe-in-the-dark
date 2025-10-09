@@ -84,12 +84,15 @@ export default function VoterView() {
     });
 
     // Handle disconnect events
-    const handleClose = (event: CloseEvent) => {
-      console.warn('Socket disconnected:', event.reason);
-      // Only show BSOD if game is active and disconnect was unexpected
-      if (game && (game.status === 'active' || game.status === 'voting')) {
-        setIsDisconnected(true);
-      }
+    const handleClose = () => {
+      console.warn('Socket disconnected');
+      // Check current game state using setGame callback to avoid stale closure
+      setGame(currentGame => {
+        if (currentGame && (currentGame.status === 'active' || currentGame.status === 'voting')) {
+          setIsDisconnected(true);
+        }
+        return currentGame;
+      });
     };
     socket.addEventListener('close', handleClose);
 
@@ -304,11 +307,6 @@ export default function VoterView() {
     }
   };
 
-  // Show BSOD if disconnected during active game
-  if (isDisconnected) {
-    return <BlueScreenOfDeath variant="voter" />;
-  }
-
   if (!game) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neo-bg">
@@ -322,7 +320,9 @@ export default function VoterView() {
   const isFinished = game.status === 'finished';
 
   return (
-    <div className="min-h-screen bg-neo-bg p-8">
+    <>
+      {isDisconnected && <BlueScreenOfDeath variant="voter" />}
+      <div className="min-h-screen bg-neo-bg p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
@@ -425,8 +425,9 @@ export default function VoterView() {
                                   exit={{ scale: 0, opacity: 0 }}
                                   transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                                 >
-                                  <Badge className={`${color} text-white text-xs px-2 py-0.5 border-black`}>
-                                    {emoji} {count}
+                                  <Badge className={`${color} text-white px-2 py-0.5 border-black flex items-center gap-1`}>
+                                    <span className="text-2xl">{emoji}</span>
+                                    <span className="text-lg font-bold">{count}</span>
                                   </Badge>
                                 </motion.div>
                               );
@@ -580,5 +581,6 @@ export default function VoterView() {
         )}
       </div>
     </div>
+    </>
   );
 }

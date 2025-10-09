@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import type { Game, GameStatusUpdateEvent, PreviewUpdateEvent, VoteUpdateEvent, 
 
 export default function AdminGameView() {
   const params = useParams();
+  const router = useRouter();
   const gameCode = params.gameId as string; // URL param is actually gameCode
 
   const [game, setGame] = useState<Game | null>(null);
@@ -57,10 +58,13 @@ export default function AdminGameView() {
     // Handle connection close
     const handleClose = () => {
       console.warn('Socket disconnected');
-      // Only show BSOD if game is active and disconnect was unexpected
-      if (game && (game.status === 'active' || game.status === 'voting')) {
-        setIsDisconnected(true);
-      }
+      // Check current game state using setGame callback to avoid stale closure
+      setGame(currentGame => {
+        if (currentGame && (currentGame.status === 'active' || currentGame.status === 'voting')) {
+          setIsDisconnected(true);
+        }
+        return currentGame;
+      });
     };
 
     socket.addEventListener('error', handleError);
@@ -361,11 +365,6 @@ export default function AdminGameView() {
     }
   }, [gameCode]);
 
-  // Show BSOD if disconnected during active game
-  if (isDisconnected) {
-    return <BlueScreenOfDeath variant="admin" />;
-  }
-
   if (!game) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neo-bg">
@@ -377,7 +376,9 @@ export default function AdminGameView() {
   // Lobby state
   if (game.status === 'lobby') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-8 bg-neo-bg">
+      <>
+        {isDisconnected && <BlueScreenOfDeath variant="admin" />}
+        <div className="min-h-screen flex items-center justify-center p-8 bg-neo-bg">
         <Card className="max-w-2xl w-full p-8">
           <div className="text-center space-y-6">
             <div>
@@ -453,6 +454,7 @@ export default function AdminGameView() {
           </div>
         </Card>
       </div>
+      </>
     );
   }
 
@@ -460,7 +462,9 @@ export default function AdminGameView() {
   const timerColor = timeRemaining < 10 ? 'text-red-500' : timeRemaining < 30 ? 'text-neo-yellow' : 'text-neo-blue';
 
   return (
-    <div className="min-h-screen bg-neo-bg">
+    <>
+      {isDisconnected && <BlueScreenOfDeath variant="admin" />}
+      <div className="min-h-screen bg-neo-bg">
       {/* Top bar */}
       <div className="border-b-4 border-black bg-white p-4">
         <div className="flex items-center justify-between">
@@ -498,6 +502,11 @@ export default function AdminGameView() {
             {game.status === 'voting' && (
               <Button variant="pink" onClick={handleDeclareWinner} className="animate-pulse">
                 CROWN THE CHAMPION
+              </Button>
+            )}
+            {game.status === 'finished' && (
+              <Button variant="pink" onClick={() => router.push('/admin/new')} className="text-xl px-8 py-6">
+                START NEW GAME
               </Button>
             )}
           </div>
@@ -560,9 +569,10 @@ export default function AdminGameView() {
                               initial={{ scale: 2.5, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
                               transition={{ type: 'spring', stiffness: 600, damping: 12, duration: 0.3 }}
-                              className="text-xs bg-orange-100 border-2 border-orange-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap"
+                              className="bg-orange-100 border-2 border-orange-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap flex items-center gap-1"
                             >
-                              🔥 {participant.reactions.fire}
+                              <span className="text-2xl">🔥</span>
+                              <span className="text-lg">{participant.reactions.fire}</span>
                             </motion.span>
                           )}
                           {participant.reactions.laugh > 0 && (
@@ -571,9 +581,10 @@ export default function AdminGameView() {
                               initial={{ scale: 2.5, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
                               transition={{ type: 'spring', stiffness: 600, damping: 12, duration: 0.3 }}
-                              className="text-xs bg-yellow-100 border-2 border-yellow-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap"
+                              className="bg-yellow-100 border-2 border-yellow-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap flex items-center gap-1"
                             >
-                              😂 {participant.reactions.laugh}
+                              <span className="text-2xl">😂</span>
+                              <span className="text-lg">{participant.reactions.laugh}</span>
                             </motion.span>
                           )}
                           {participant.reactions.think > 0 && (
@@ -582,9 +593,10 @@ export default function AdminGameView() {
                               initial={{ scale: 2.5, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
                               transition={{ type: 'spring', stiffness: 600, damping: 12, duration: 0.3 }}
-                              className="text-xs bg-blue-100 border-2 border-blue-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap"
+                              className="bg-blue-100 border-2 border-blue-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap flex items-center gap-1"
                             >
-                              🤔 {participant.reactions.think}
+                              <span className="text-2xl">🤔</span>
+                              <span className="text-lg">{participant.reactions.think}</span>
                             </motion.span>
                           )}
                           {participant.reactions.shock > 0 && (
@@ -593,9 +605,10 @@ export default function AdminGameView() {
                               initial={{ scale: 2.5, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
                               transition={{ type: 'spring', stiffness: 600, damping: 12, duration: 0.3 }}
-                              className="text-xs bg-purple-100 border-2 border-purple-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap"
+                              className="bg-purple-100 border-2 border-purple-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap flex items-center gap-1"
                             >
-                              😱 {participant.reactions.shock}
+                              <span className="text-2xl">😱</span>
+                              <span className="text-lg">{participant.reactions.shock}</span>
                             </motion.span>
                           )}
                           {participant.reactions.cool > 0 && (
@@ -604,9 +617,10 @@ export default function AdminGameView() {
                               initial={{ scale: 2.5, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
                               transition={{ type: 'spring', stiffness: 600, damping: 12, duration: 0.3 }}
-                              className="text-xs bg-teal-100 border-2 border-teal-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap"
+                              className="bg-teal-100 border-2 border-teal-500 rounded px-1.5 py-0.5 font-bold whitespace-nowrap flex items-center gap-1"
                             >
-                              😎 {participant.reactions.cool}
+                              <span className="text-2xl">😎</span>
+                              <span className="text-lg">{participant.reactions.cool}</span>
                             </motion.span>
                           )}
                         </>
@@ -728,28 +742,33 @@ export default function AdminGameView() {
                         </p>
                         <div className="flex gap-2 mt-1 flex-wrap">
                           {participant.reactions.fire > 0 && (
-                            <span className="text-xs bg-orange-100 border-2 border-orange-500 rounded px-2 py-1">
-                              🔥 {participant.reactions.fire}
+                            <span className="bg-orange-100 border-2 border-orange-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">🔥</span>
+                              <span className="text-lg font-bold">{participant.reactions.fire}</span>
                             </span>
                           )}
                           {participant.reactions.laugh > 0 && (
-                            <span className="text-xs bg-yellow-100 border-2 border-yellow-500 rounded px-2 py-1">
-                              😂 {participant.reactions.laugh}
+                            <span className="bg-yellow-100 border-2 border-yellow-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">😂</span>
+                              <span className="text-lg font-bold">{participant.reactions.laugh}</span>
                             </span>
                           )}
                           {participant.reactions.think > 0 && (
-                            <span className="text-xs bg-blue-100 border-2 border-blue-500 rounded px-2 py-1">
-                              🤔 {participant.reactions.think}
+                            <span className="bg-blue-100 border-2 border-blue-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">🤔</span>
+                              <span className="text-lg font-bold">{participant.reactions.think}</span>
                             </span>
                           )}
                           {participant.reactions.shock > 0 && (
-                            <span className="text-xs bg-purple-100 border-2 border-purple-500 rounded px-2 py-1">
-                              😱 {participant.reactions.shock}
+                            <span className="bg-purple-100 border-2 border-purple-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">😱</span>
+                              <span className="text-lg font-bold">{participant.reactions.shock}</span>
                             </span>
                           )}
                           {participant.reactions.cool > 0 && (
-                            <span className="text-xs bg-teal-100 border-2 border-teal-500 rounded px-2 py-1">
-                              😎 {participant.reactions.cool}
+                            <span className="bg-teal-100 border-2 border-teal-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">😎</span>
+                              <span className="text-lg font-bold">{participant.reactions.cool}</span>
                             </span>
                           )}
                         </div>
@@ -765,10 +784,17 @@ export default function AdminGameView() {
                 })}
             </div>
 
-            <div className="mt-8 text-center">
+            <div className="mt-8 text-center space-y-4">
               <Button
                 variant="pink"
-                className="text-2xl py-6 px-12"
+                className="text-2xl py-6 px-12 w-full"
+                onClick={() => router.push('/admin/new')}
+              >
+                START NEW GAME
+              </Button>
+              <Button
+                variant="default"
+                className="text-lg py-4 px-8"
                 onClick={() => setShowLeaderboard(false)}
               >
                 Close Leaderboard
@@ -778,5 +804,6 @@ export default function AdminGameView() {
         </motion.div>
       )}
     </div>
+    </>
   );
 }

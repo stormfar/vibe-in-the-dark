@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ const EMOJI_MAP: Record<ReactionType, string> = {
 
 export default function GamePlay() {
   const params = useParams();
+  const router = useRouter();
   const gameCode = params.gameId as string; // URL param is gameCode
 
   const [participantId, setParticipantId] = useState('');
@@ -94,14 +95,19 @@ export default function GamePlay() {
       }
     });
 
-    const cleanupDisconnect = onEvent(socket, 'disconnect', (payload) => {
-      const reason = payload as unknown;
-      console.warn('Socket disconnected:', reason);
-      // Only show BSOD if game is active and disconnect was unexpected
-      if (game && (game.status === 'active' || game.status === 'voting')) {
-        setIsDisconnected(true);
-      }
-    });
+    // Handle connection close
+    const handleClose = () => {
+      console.warn('Socket disconnected');
+      // Check current game state using setGame callback to avoid stale closure
+      setGame(currentGame => {
+        if (currentGame && (currentGame.status === 'active' || currentGame.status === 'voting')) {
+          setIsDisconnected(true);
+        }
+        return currentGame;
+      });
+    };
+
+    socket.addEventListener('close', handleClose);
 
     const cleanupGameState = onEvent(socket, 'game:state', (payload) => {
       const gameState = payload as Game;
@@ -180,7 +186,7 @@ export default function GamePlay() {
     });
 
     return () => {
-      cleanupDisconnect();
+      socket.removeEventListener('close', handleClose);
       cleanupGameState();
       cleanupStatusUpdate();
       cleanupPreviewUpdate();
@@ -331,13 +337,10 @@ export default function GamePlay() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Show BSOD if disconnected during active game
-  if (isDisconnected) {
-    return <BlueScreenOfDeath variant="player" />;
-  }
-
   return (
-    <div className={`h-screen flex flex-col bg-neo-bg relative overflow-hidden ${timeRemaining <= 15 && isGameActive ? 'animate-shake' : ''}`}>
+    <>
+      {isDisconnected && <BlueScreenOfDeath variant="player" />}
+      <div className={`h-screen flex flex-col bg-neo-bg relative overflow-hidden ${timeRemaining <= 15 && isGameActive ? 'animate-shake' : ''}`}>
       {/* Floating emoji explosions - random positions across screen */}
       <div className="fixed inset-0 pointer-events-none z-50">
         <AnimatePresence>
@@ -618,6 +621,24 @@ export default function GamePlay() {
         </div>
       </div>
       )}
+
+      {/* Bottom section - Vote button (only show when voting is open) */}
+      {game?.status === 'voting' && (
+        <div className="flex-[0.5] p-4 border-t-4 border-black bg-neo-yellow">
+          <div className="h-full flex flex-col items-center justify-center gap-4">
+            <p className="font-black text-2xl text-center">Voting is open!</p>
+            <p className="text-lg text-center">Check out everyone&apos;s creations and vote for your favourite</p>
+            <Button
+              variant="pink"
+              onClick={() => router.push(`/game/${gameCode}/vote`)}
+              className="text-xl px-8 py-6"
+            >
+              VOTE FOR MY FAVOURITE
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
+    </>
   );
 }
