@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 
 export default function AdminNewGame() {
   const router = useRouter();
+  const [renderMode, setRenderMode] = useState<'retro' | 'turbo'>('retro');
   const [targetType, setTargetType] = useState<'image' | 'text'>('image');
   const [targetImageUrl, setTargetImageUrl] = useState('');
   const [targetText, setTargetText] = useState('');
@@ -47,6 +48,7 @@ export default function AdminNewGame() {
 
     try {
       const requestBody: {
+        renderMode: 'retro' | 'turbo';
         targetType: 'image' | 'text';
         targetImageUrl?: string;
         targetText?: string;
@@ -55,6 +57,7 @@ export default function AdminNewGame() {
         maxCharacters: number;
         customCode?: string;
       } = {
+        renderMode,
         targetType,
         duration,
         maxPrompts,
@@ -111,6 +114,34 @@ export default function AdminNewGame() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Render Mode Selection */}
+          <div>
+            <label className="block font-bold mb-2 text-lg">
+              Choose Your Weapon
+            </label>
+            <p className="text-sm text-gray-600 mb-3">
+              Select how participants will build their masterpiece
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant={renderMode === 'retro' ? 'pink' : 'default'}
+                onClick={() => setRenderMode('retro')}
+                className="flex-1 flex-col h-auto py-4"
+              >
+                <span className="text-xl font-black">🕹️ RETRO MODE</span>
+                <span className="text-xs font-normal mt-1">HTML/CSS - Like it&apos;s 1999</span>
+              </Button>
+              <Button
+                variant={renderMode === 'turbo' ? 'blue' : 'default'}
+                onClick={() => setRenderMode('turbo')}
+                className="flex-1 flex-col h-auto py-4"
+              >
+                <span className="text-xl font-black">🚀 TURBO MODE</span>
+                <span className="text-xs font-normal mt-1">Components - Full React chaos</span>
+              </Button>
+            </div>
+          </div>
+
           {/* Target Type Toggle */}
           <div>
             <label className="block font-bold mb-2 text-lg">

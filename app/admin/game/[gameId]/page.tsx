@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
+import PreviewRenderer from '@/components/PreviewRenderer';
 import type { Game, GameStatusUpdateEvent, PreviewUpdateEvent, VoteUpdateEvent, ReactionUpdateEvent, WinnerDeclaredEvent } from '@/lib/types';
 
 export default function AdminGameView() {
@@ -127,7 +128,9 @@ export default function AdminGameView() {
             p.id === update.participantId
               ? {
                   ...p,
-                  currentCode: { html: update.html, css: update.css },
+                  currentCode: prev.renderMode === 'retro'
+                    ? { html: update.html, css: update.css }
+                    : { jsx: update.jsx },
                   promptHistory: update.promptCount !== undefined
                     ? Array(update.promptCount).fill({ prompt: '', timestamp: 0 })
                     : p.promptHistory
@@ -354,7 +357,10 @@ export default function AdminGameView() {
 
             <div>
               <p className="font-bold text-lg mb-3">Game Settings:</p>
-              <div className="flex gap-4 justify-center text-sm">
+              <div className="flex gap-3 justify-center text-sm flex-wrap">
+                <Badge variant={game.renderMode === 'retro' ? 'pink' : 'blue'} className="px-4 py-2 text-base">
+                  {game.renderMode === 'retro' ? '🕹️ RETRO MODE' : '🚀 TURBO MODE'}
+                </Badge>
                 <Badge variant="blue" className="px-3 py-1">
                   ⏱️ {Math.floor(game.duration / 60)} min
                 </Badge>
@@ -366,7 +372,6 @@ export default function AdminGameView() {
                 </Badge>
               </div>
             </div>
-
             <div>
               <p className="font-bold text-lg mb-3">Brave souls joining:</p>
               {game.participants.length > 0 ? (
@@ -575,14 +580,26 @@ export default function AdminGameView() {
                     </div>
 
                     <div
-                      className={`neo-border bg-white cursor-pointer transition-all relative ${
-                        isExpanded ? 'hover:opacity-90' : 'hover:scale-[1.05]'
+                      className={`neo-border bg-white transition-all relative ${
+                        isExpanded ? 'overflow-auto cursor-default' : 'overflow-hidden cursor-pointer hover:scale-[1.05]'
                       }`}
                       style={{ height: isExpanded ? '70vh' : '200px' }}
-                      onClick={() => setExpandedParticipant(isExpanded ? null : participant.id)}
+                      onClick={() => !isExpanded && setExpandedParticipant(participant.id)}
                     >
                       {/* Action buttons - top right */}
                       <div className="absolute top-2 right-2 flex gap-1 z-10 pointer-events-auto">
+                        {isExpanded && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedParticipant(null);
+                            }}
+                            className="w-8 h-8 flex items-center justify-center bg-white/90 hover:bg-red-500 hover:text-white neo-border rounded transition-colors text-sm font-bold"
+                            title="Close"
+                          >
+                            ✕
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -602,19 +619,23 @@ export default function AdminGameView() {
                         </button>
                       </div>
 
-                      <iframe
-                        srcDoc={`
-                          <!DOCTYPE html>
-                          <html>
-                            <head>
-                              <style>${participant.currentCode?.css || ''}</style>
-                            </head>
-                            <body>${participant.currentCode?.html || '<div style="padding: 20px; font-size: 12px;">Waiting...</div>'}</body>
-                          </html>
-                        `}
-                        sandbox="allow-same-origin"
-                        className="w-full h-full border-0 pointer-events-none"
-                      />
+                      <div
+                        className="w-full h-full"
+                        style={{
+                          transform: isExpanded ? 'scale(1)' : 'scale(0.25)',
+                          transformOrigin: 'top left',
+                          width: isExpanded ? '100%' : '400%',
+                          height: isExpanded ? '100%' : '400%',
+                        }}
+                      >
+                        <PreviewRenderer
+                          renderMode={game.renderMode}
+                          html={participant.currentCode?.html}
+                          css={participant.currentCode?.css}
+                          jsx={participant.currentCode?.jsx}
+                          className={`w-full h-full border-0 ${isExpanded ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                        />
+                      </div>
                     </div>
                   </Card>
                 </motion.div>

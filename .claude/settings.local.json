@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(for component in calendar popover tabs accordion slider switch progress tooltip)",
+      "Bash(do echo \"Installing $component...\")",
+      "Bash(done)",
+      "Bash(xargs:*)",
+      "Bash(npm install:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

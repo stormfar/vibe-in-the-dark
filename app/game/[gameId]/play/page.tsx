@@ -11,6 +11,7 @@ import { getFingerprint } from '@/lib/fingerprint';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
+import PreviewRenderer from '@/components/PreviewRenderer';
 import type { Game, GameStatus, ReactionType } from '@/lib/types';
 
 const EMOJI_MAP: Record<ReactionType, string> = {
@@ -111,10 +112,11 @@ export default function GamePlay() {
       }
     });
 
-    socket.on('preview:update', (update: { participantId: string; html: string; css: string }) => {
+    socket.on('preview:update', (update: { participantId: string; html?: string; css?: string; jsx?: string }) => {
       if (update.participantId === participantId) {
-        setCurrentHtml(update.html);
-        setCurrentCss(update.css);
+        if (update.html !== undefined) setCurrentHtml(update.html);
+        if (update.css !== undefined) setCurrentCss(update.css);
+        // JSX is handled through game state
       }
     });
 
@@ -139,7 +141,7 @@ export default function GamePlay() {
               // Remove after animation completes
               setTimeout(() => {
                 setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id));
-              }, 2000);
+              }, 2500);
               break; // Only add one emoji per reaction event
             }
           }
@@ -217,8 +219,10 @@ export default function GamePlay() {
       }
 
       const data = await response.json();
-      setCurrentHtml(data.html);
-      setCurrentCss(data.css);
+      // Handle both retro and turbo mode responses
+      if (data.html !== undefined) setCurrentHtml(data.html);
+      if (data.css !== undefined) setCurrentCss(data.css);
+      // JSX updates come through socket
       setPromptHistory([...promptHistory, prompt.trim()]);
       setPrompt('');
       toast.success('Claude has spoken!');
@@ -304,23 +308,30 @@ export default function GamePlay() {
 
   return (
     <div className={`h-screen flex flex-col bg-neo-bg relative overflow-hidden ${timeRemaining <= 15 && isGameActive ? 'animate-shake' : ''}`}>
-      {/* Floating emoji explosions - bottom right */}
-      <div className="fixed bottom-8 right-8 w-64 h-64 pointer-events-none z-50">
+      {/* Floating emoji explosions - random positions across screen */}
+      <div className="fixed inset-0 pointer-events-none z-50">
         <AnimatePresence>
           {floatingEmojis.map((floatingEmoji) => (
             <motion.div
               key={floatingEmoji.id}
-              initial={{ opacity: 1, scale: 0, x: '50%', y: '50%' }}
-              animate={{
+              initial={{
                 opacity: 0,
-                scale: [0, 3, 2.5, 3, 0],
-                x: `${Math.random() * 100}%`,
-                y: [`50%`, `${-100 - Math.random() * 50}%`],
-                rotate: [0, 15, -15, 10, -10, 0]
+                scale: 0,
+                left: `${floatingEmoji.x}%`,
+                top: `${floatingEmoji.y}%`,
               }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 2, ease: 'easeOut' }}
-              className="absolute text-6xl"
+              animate={{
+                opacity: [0, 1, 1, 0],
+                scale: [0, 2.5, 2.5, 0],
+                top: `${floatingEmoji.y - 15}%`,
+                rotate: [0, 360],
+              }}
+              exit={{ opacity: 0, scale: 0 }}
+              transition={{ duration: 2.5, ease: 'easeOut' }}
+              className="absolute text-7xl"
+              style={{
+                textShadow: '3px 3px 6px rgba(0,0,0,0.4)',
+              }}
             >
               {floatingEmoji.emoji}
             </motion.div>
@@ -331,7 +342,10 @@ export default function GamePlay() {
       {/* Game Info Header */}
       {game && isGameActive && (
         <div className="bg-white border-b-4 border-black p-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Badge variant={game.renderMode === 'retro' ? 'pink' : 'blue'} className="text-base px-3 py-1">
+              {game.renderMode === 'retro' ? '🕹️ RETRO' : '🚀 TURBO'}
+            </Badge>
             <Badge variant="blue" className="text-lg px-4 py-2">
               Game Code: {gameCode}
             </Badge>
@@ -374,19 +388,15 @@ export default function GamePlay() {
             <div className="flex-[2] flex flex-col">
               <p className="font-bold text-sm mb-2">Your Beautiful Disaster</p>
               <div className="flex-1 neo-border bg-white overflow-hidden">
-                <iframe
-                  srcDoc={`
-                    <!DOCTYPE html>
-                    <html>
-                      <head>
-                        <style>${currentCss}</style>
-                      </head>
-                      <body>${currentHtml}</body>
-                    </html>
-                  `}
-                  sandbox="allow-same-origin"
-                  className="w-full h-full border-0"
-                />
+                {game && (
+                  <PreviewRenderer
+                    renderMode={game.renderMode}
+                    html={currentHtml}
+                    css={currentCss}
+                    jsx={game.participants.find(p => p.id === participantId)?.currentCode.jsx}
+                    className="w-full h-full border-0"
+                  />
+                )}
               </div>
             </div>
           </>
@@ -468,19 +478,15 @@ export default function GamePlay() {
                                 </button>
                               </div>
 
-                              <iframe
-                                srcDoc={`
-                                  <!DOCTYPE html>
-                                  <html>
-                                    <head>
-                                      <style>${p.currentCode.css}</style>
-                                    </head>
-                                    <body>${p.currentCode.html}</body>
-                                  </html>
-                                `}
-                                sandbox="allow-same-origin"
-                                className="w-full h-full border-0 pointer-events-none"
-                              />
+                              {game && (
+                                <PreviewRenderer
+                                  renderMode={game.renderMode}
+                                  html={p.currentCode.html}
+                                  css={p.currentCode.css}
+                                  jsx={p.currentCode.jsx}
+                                  className="w-full h-full border-0 pointer-events-none"
+                                />
+                              )}
                             </div>
                           </div>
                         </Card>
@@ -496,19 +502,15 @@ export default function GamePlay() {
                 <h3 className="font-black text-lg text-center">YOUR FINAL MASTERPIECE</h3>
               </div>
               <div className="flex-1 neo-border bg-white overflow-hidden">
-                <iframe
-                  srcDoc={`
-                    <!DOCTYPE html>
-                    <html>
-                      <head>
-                        <style>${currentCss}</style>
-                      </head>
-                      <body>${currentHtml}</body>
-                    </html>
-                  `}
-                  sandbox="allow-same-origin"
-                  className="w-full h-full border-0"
-                />
+                {game && (
+                  <PreviewRenderer
+                    renderMode={game.renderMode}
+                    html={currentHtml}
+                    css={currentCss}
+                    jsx={game.participants.find(p => p.id === participantId)?.currentCode.jsx}
+                    className="w-full h-full border-0"
+                  />
+                )}
               </div>
             </div>
           </>

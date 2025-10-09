@@ -2,6 +2,8 @@
 
 export type GameStatus = 'lobby' | 'reveal' | 'active' | 'voting' | 'finished';
 
+export type RenderMode = 'retro' | 'turbo'; // retro = HTML/CSS, turbo = React components
+
 export type ReactionType = 'fire' | 'laugh' | 'think' | 'shock' | 'cool';
 
 export interface Reaction {
@@ -24,8 +26,9 @@ export interface Participant {
   name: string;
   socketId: string;
   currentCode: {
-    html: string;
-    css: string;
+    html?: string;  // For retro mode
+    css?: string;   // For retro mode
+    jsx?: string;   // For turbo mode
   };
   promptHistory: {
     prompt: string;
@@ -39,6 +42,7 @@ export interface Participant {
 export interface Game {
   code: string; // Primary ID - short code like "VIBE42"
   status: GameStatus;
+  renderMode: RenderMode; // retro (HTML/CSS) or turbo (React components)
   targetType: 'image' | 'text'; // Type of target
   targetImageUrl?: string; // URL if targetType is 'image'
   targetText?: string; // Description if targetType is 'text'
@@ -56,6 +60,7 @@ export interface Game {
 
 // API Request/Response types
 export interface CreateGameRequest {
+  renderMode: RenderMode; // retro or turbo
   targetType: 'image' | 'text';
   targetImageUrl?: string; // Required if targetType is 'image'
   targetText?: string; // Required if targetType is 'text'
@@ -89,8 +94,9 @@ export interface PromptRequest {
 }
 
 export interface PromptResponse {
-  html: string;
-  css: string;
+  html?: string;  // For retro mode
+  css?: string;   // For retro mode
+  jsx?: string;   // For turbo mode
 }
 
 export interface VoteRequest {
@@ -132,8 +138,9 @@ export interface ParticipantJoinedEvent {
 
 export interface PreviewUpdateEvent {
   participantId: string;
-  html: string;
-  css: string;
+  html?: string;      // For retro mode
+  css?: string;       // For retro mode
+  jsx?: string;       // For turbo mode
   promptCount: number;
 }
 

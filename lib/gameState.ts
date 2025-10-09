@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Game, Participant, Vote } from './types';
+import type { Game, Participant, Vote, RenderMode } from './types';
 
 // In-memory storage - use global to ensure same instance across all imports
 // This is necessary because Next.js API routes and the custom server may load this module separately
@@ -21,6 +21,7 @@ function generateGameCode(): string {
 
 // Create a new game
 export function createGame(
+  renderMode: RenderMode,
   targetType: 'image' | 'text',
   duration: number,
   targetImageUrl?: string,
@@ -42,6 +43,7 @@ export function createGame(
   const game: Game = {
     code,
     status: 'lobby',
+    renderMode,
     targetType,
     targetImageUrl,
     targetText,
@@ -90,14 +92,21 @@ export function addParticipant(
     return null;
   }
 
+  // Initialize code based on render mode
+  const currentCode = game.renderMode === 'retro'
+    ? {
+        html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start prompting!</h1></div>',
+        css: '',
+      }
+    : {
+        jsx: `export default function Component() {\n  return (\n    <div className="flex items-center justify-center h-full">\n      <h1 className="text-4xl font-bold">Start prompting!</h1>\n    </div>\n  );\n}`,
+      };
+
   const participant: Participant = {
     id: uuidv4(),
     name: participantName,
     socketId,
-    currentCode: {
-      html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start prompting!</h1></div>',
-      css: '',
-    },
+    currentCode,
     promptHistory: [],
     reactions: { fire: 0, laugh: 0, think: 0, shock: 0, cool: 0 },
     voteCount: 0,
@@ -108,12 +117,13 @@ export function addParticipant(
   return participant;
 }
 
-// Update participant code
+// Update participant code (handles both retro and turbo modes)
 export function updateParticipantCode(
   gameCode: string,
   participantId: string,
-  html: string,
-  css: string
+  html?: string,
+  css?: string,
+  jsx?: string
 ): boolean {
   const game = games.get(gameCode.toUpperCase());
   if (!game) return false;
@@ -121,7 +131,13 @@ export function updateParticipantCode(
   const participant = game.participants.find(p => p.id === participantId);
   if (!participant) return false;
 
-  participant.currentCode = { html, css };
+  // Update based on what's provided
+  if (game.renderMode === 'retro' && html !== undefined && css !== undefined) {
+    participant.currentCode = { html, css };
+  } else if (game.renderMode === 'turbo' && jsx !== undefined) {
+    participant.currentCode = { jsx };
+  }
+
   return true;
 }
 

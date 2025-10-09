@@ -77,11 +77,13 @@ export async function POST(request: NextRequest) {
 
     promptTimestamps.set(key, now);
 
-    // Process prompt with Claude
+    // Process prompt with Claude (handle both modes)
     const result = await processPrompt(
       prompt,
+      game.renderMode,
       participant.currentCode.html,
-      participant.currentCode.css
+      participant.currentCode.css,
+      participant.currentCode.jsx
     );
 
     if (result.error) {
@@ -91,8 +93,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update participant code
-    updateParticipantCode(gameCode, participantId, result.html, result.css);
+    // Update participant code based on mode
+    if (game.renderMode === 'retro' && result.html !== undefined && result.css !== undefined) {
+      updateParticipantCode(gameCode, participantId, result.html, result.css);
+    } else if (game.renderMode === 'turbo' && result.jsx !== undefined) {
+      updateParticipantCode(gameCode, participantId, undefined, undefined, result.jsx);
+    }
 
     // Add to prompt history
     addPromptToHistory(gameCode, participantId, prompt);
@@ -102,18 +108,18 @@ export async function POST(request: NextRequest) {
     const updatedParticipant = updatedGame?.participants.find(p => p.id === participantId);
     const promptCount = updatedParticipant?.promptHistory.length || 0;
 
-    // Emit preview update
+    // Emit preview update (handle both modes)
     emitPreviewUpdate(gameCode, {
       participantId,
       html: result.html,
       css: result.css,
+      jsx: result.jsx,
       promptCount,
     });
 
-    const response: PromptResponse = {
-      html: result.html,
-      css: result.css,
-    };
+    const response: PromptResponse = game.renderMode === 'retro'
+      ? { html: result.html, css: result.css }
+      : { jsx: result.jsx };
 
     return NextResponse.json(response);
   } catch (error) {

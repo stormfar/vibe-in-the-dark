@@ -1,7 +1,7 @@
 const LITELLM_BASE_URL = 'https://litellm-oidc.holidu.com';
 const AUTH_URL = 'https://auth.holidu.com/realms/guest/protocol/openid-connect/token';
 
-const SYSTEM_PROMPT = `You are helping a participant in a coding challenge. They can only see their rendered HTML preview, not the code itself.
+const RETRO_SYSTEM_PROMPT = `You are helping a participant in a coding challenge. They can only see their rendered HTML preview, not the code itself.
 
 Given their current HTML and CSS, and their natural language prompt, generate ONLY the updated HTML and CSS.
 
@@ -23,9 +23,71 @@ Output format (respond with ONLY this, no explanation):
 </body>
 </html>`;
 
+const TURBO_SYSTEM_PROMPT = `You are helping a participant in a React component coding challenge. They can only see their rendered component, not the code itself.
+
+Given their current JSX component and their natural language prompt, generate an updated React component.
+
+Available shadcn/ui components you MUST use when appropriate (use default shadcn styling, not custom styles):
+- Button: <Button variant="default|destructive|outline|secondary|ghost|link">Text</Button>
+- Card: <Card><CardHeader><CardTitle/><CardDescription/></CardHeader><CardContent>...</CardContent></Card>
+- Badge: <Badge variant="default|secondary|destructive|outline">Text</Badge>
+- Input: <Input type="text|email|password" placeholder="..." />
+- Textarea: <Textarea placeholder="..." />
+- Select: <Select><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="...">...</SelectItem></SelectContent></Select>
+- Dialog: <Dialog><DialogTrigger>...</DialogTrigger><DialogContent><DialogHeader><DialogTitle/></DialogHeader>...</DialogContent></Dialog>
+- Tabs: <Tabs><TabsList><TabsTrigger value="...">...</TabsTrigger></TabsList><TabsContent value="...">...</TabsContent></Tabs>
+- Accordion: <Accordion type="single"><AccordionItem value="..."><AccordionTrigger>...</AccordionTrigger><AccordionContent>...</AccordionContent></AccordionItem></Accordion>
+- Slider: <Slider defaultValue={[50]} max={100} step={1} />
+- Switch: <Switch checked={...} onCheckedChange={...} />
+- Progress: <Progress value={33} />
+- Popover: <Popover><PopoverTrigger>...</PopoverTrigger><PopoverContent>...</PopoverContent></Popover>
+- Tooltip: <Tooltip><TooltipTrigger>...</TooltipTrigger><TooltipContent>...</TooltipContent></Tooltip>
+- Calendar: <Calendar mode="single" selected={date} onSelect={setDate} />
+- Checkbox: <Checkbox checked={...} onCheckedChange={...} />
+
+IMPORTANT styling guidelines:
+- Use the default shadcn component styling (clean, minimal design)
+- Do NOT add neo-brutalist styles (thick borders, harsh shadows, etc.)
+- Let users request specific design styles in their prompts if they want them
+- Use subtle colors and standard Tailwind utilities
+
+Tailwind classes for styling (use these freely):
+- Layout: flex, grid, items-center, justify-center, gap-4, p-4, m-4, space-y-2
+- Sizing: w-full, h-full, max-w-md, min-h-[200px] (IMPORTANT: use h-full NOT h-screen - the component is inside a container)
+- Colors: bg-blue-500, text-white, border-gray-200
+- Typography: text-lg, font-bold, text-center
+- Effects: rounded-lg, shadow-lg, hover:bg-blue-600
+
+Rules:
+- ONLY use the components listed above - no other libraries
+- Component must be a default export named "Component"
+- Use React hooks (useState, useEffect) when needed for interactivity
+- IMPORTANT: The component renders inside a container, so use h-full for full height, NOT h-screen
+- The root element should typically be: <div className="h-full w-full p-4">...</div>
+- Make incremental changes based on their prompt
+- Keep it functional and interactive
+- Have fun with it - this is a game!
+
+Output format (respond with ONLY this JSX, no explanation):
+\`\`\`jsx
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+// ... other imports as needed
+
+export default function Component() {
+  // Component code here
+  return (
+    <div>
+      {/* JSX here */}
+    </div>
+  );
+}
+\`\`\``;
+
 export interface ProcessPromptResult {
-  html: string;
-  css: string;
+  html?: string;   // For retro mode
+  css?: string;    // For retro mode
+  jsx?: string;    // For turbo mode
   error?: string;
 }
 
@@ -85,10 +147,12 @@ async function getAccessToken(): Promise<string> {
 
 export async function processPrompt(
   userPrompt: string,
-  currentHtml: string,
-  currentCss: string
+  renderMode: 'retro' | 'turbo',
+  currentHtml?: string,
+  currentCss?: string,
+  currentJsx?: string
 ): Promise<ProcessPromptResult> {
-  console.log('processPrompt called with prompt:', userPrompt);
+  console.log('processPrompt called with prompt:', userPrompt, 'mode:', renderMode);
 
   try {
     // Get OAuth access token
@@ -96,16 +160,22 @@ export async function processPrompt(
     const accessToken = await getAccessToken();
     console.log('OAuth token obtained:', accessToken.substring(0, 20) + '...');
 
+    // Select system prompt and current code based on mode
+    const systemPrompt = renderMode === 'retro' ? RETRO_SYSTEM_PROMPT : TURBO_SYSTEM_PROMPT;
+    const currentCode = renderMode === 'retro'
+      ? `Current HTML:\n${currentHtml}\n\nCurrent CSS:\n${currentCss}`
+      : `Current JSX Component:\n${currentJsx}`;
+
     // Make direct API call to LiteLLM using Anthropic format
     console.log('Making API request to:', `${LITELLM_BASE_URL}/v1/messages`);
     const requestBody = {
       model: 'claude-4-sonnet',
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [
         {
           role: 'user',
-          content: `Current HTML:\n${currentHtml}\n\nCurrent CSS:\n${currentCss}\n\nUser prompt: ${userPrompt}`,
+          content: `${currentCode}\n\nUser prompt: ${userPrompt}`,
         },
       ],
     };
@@ -138,26 +208,20 @@ export async function processPrompt(
 
       // Handle specific status codes
       if (response.status === 429) {
-        return {
-          html: currentHtml,
-          css: currentCss,
-          error: 'Claude is overwhelmed. Wait a sec.',
-        };
+        return renderMode === 'retro'
+          ? { html: currentHtml, css: currentCss, error: 'Claude is overwhelmed. Wait a sec.' }
+          : { jsx: currentJsx, error: 'Claude is overwhelmed. Wait a sec.' };
       }
 
       if (response.status === 401 || response.status === 403) {
-        return {
-          html: currentHtml,
-          css: currentCss,
-          error: 'Authentication failed. Check LiteLLM credentials.',
-        };
+        return renderMode === 'retro'
+          ? { html: currentHtml, css: currentCss, error: 'Authentication failed. Check LiteLLM credentials.' }
+          : { jsx: currentJsx, error: 'Authentication failed. Check LiteLLM credentials.' };
       }
 
-      return {
-        html: currentHtml,
-        css: currentCss,
-        error: `API Error (${response.status}): ${errorMessage.substring(0, 100)}`,
-      };
+      return renderMode === 'retro'
+        ? { html: currentHtml, css: currentCss, error: `API Error (${response.status}): ${errorMessage.substring(0, 100)}` }
+        : { jsx: currentJsx, error: `API Error (${response.status}): ${errorMessage.substring(0, 100)}` };
     }
 
     const data = await response.json();
@@ -167,25 +231,23 @@ export async function processPrompt(
     const assistantMessage = data.content?.[0]?.text;
     if (!assistantMessage) {
       console.error('Unexpected response format:', JSON.stringify(data, null, 2));
-      return {
-        html: currentHtml,
-        css: currentCss,
-        error: 'Unexpected response format from LiteLLM',
-      };
+      return renderMode === 'retro'
+        ? { html: currentHtml, css: currentCss, error: 'Unexpected response format from LiteLLM' }
+        : { jsx: currentJsx, error: 'Unexpected response format from LiteLLM' };
     }
 
     console.log('Assistant message:', assistantMessage);
 
-    // Parse the response
-    const parsed = parseClaudeResponse(assistantMessage);
+    // Parse the response based on mode
+    const parsed = renderMode === 'retro'
+      ? parseRetroResponse(assistantMessage)
+      : parseTurboResponse(assistantMessage);
     console.log('Parsed result:', parsed ? 'success' : 'failed');
 
     if (!parsed) {
-      return {
-        html: currentHtml,
-        css: currentCss,
-        error: 'That prompt broke Claude\'s brain 🤯',
-      };
+      return renderMode === 'retro'
+        ? { html: currentHtml, css: currentCss, error: 'That prompt broke Claude\'s brain 🤯' }
+        : { jsx: currentJsx, error: 'That prompt broke Claude\'s brain 🤯' };
     }
 
     return parsed;
@@ -195,16 +257,14 @@ export async function processPrompt(
     // Extract error message
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    // Return error with actual message
-    return {
-      html: currentHtml,
-      css: currentCss,
-      error: `Error: ${errorMessage}`,
-    };
+    // Return error with actual message based on mode
+    return renderMode === 'retro'
+      ? { html: currentHtml, css: currentCss, error: `Error: ${errorMessage}` }
+      : { jsx: currentJsx, error: `Error: ${errorMessage}` };
   }
 }
 
-function parseClaudeResponse(response: string): { html: string; css: string } | null {
+function parseRetroResponse(response: string): { html: string; css: string } | null {
   try {
     // Extract content between <html> and </html>
     const htmlMatch = response.match(/<html>([\s\S]*?)<\/html>/i);
@@ -223,6 +283,33 @@ function parseClaudeResponse(response: string): { html: string; css: string } | 
     const html = bodyMatch ? bodyMatch[1].trim() : fullHtml;
 
     return { html, css };
+  } catch (error) {
+    console.error('Parse error:', error);
+    return null;
+  }
+}
+
+function parseTurboResponse(response: string): { jsx: string } | null {
+  try {
+    // Extract JSX from code block
+    const codeBlockMatch = response.match(/```(?:jsx|tsx|javascript|typescript)?\n([\s\S]*?)```/);
+    if (!codeBlockMatch) {
+      // Try without code block markers
+      // Check if response looks like JSX (contains import and export default)
+      if (response.includes('export default') && (response.includes('import') || response.includes('function Component'))) {
+        return { jsx: response.trim() };
+      }
+      return null;
+    }
+
+    const jsx = codeBlockMatch[1].trim();
+
+    // Validate it looks like JSX
+    if (!jsx.includes('export default')) {
+      return null;
+    }
+
+    return { jsx };
   } catch (error) {
     console.error('Parse error:', error);
     return null;

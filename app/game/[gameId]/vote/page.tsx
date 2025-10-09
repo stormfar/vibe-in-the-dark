@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
+import PreviewRenderer from '@/components/PreviewRenderer';
 import type {
   Game,
   GameStatus,
@@ -124,14 +125,19 @@ export default function VoterView() {
       });
     });
 
-    socket.on('preview:update', (update: { participantId: string; html: string; css: string }) => {
+    socket.on('preview:update', (update: { participantId: string; html?: string; css?: string; jsx?: string }) => {
       setGame(prev => {
         if (!prev) return prev;
         return {
           ...prev,
           participants: prev.participants.map(p =>
             p.id === update.participantId
-              ? { ...p, currentCode: { html: update.html, css: update.css } }
+              ? {
+                  ...p,
+                  currentCode: prev.renderMode === 'retro'
+                    ? { html: update.html, css: update.css }
+                    : { jsx: update.jsx }
+                }
               : p
           ),
         };
@@ -419,13 +425,25 @@ export default function VoterView() {
 
                       {/* Preview */}
                       <div
-                        className={`neo-border bg-white cursor-pointer transition-all relative ${
-                          isExpanded ? 'h-[600px] hover:opacity-90' : 'h-64 hover:scale-[1.05]'
+                        className={`neo-border bg-white transition-all relative ${
+                          isExpanded ? 'h-[600px] overflow-auto cursor-default' : 'h-64 overflow-hidden cursor-pointer hover:scale-[1.05]'
                         }`}
-                        onClick={() => setExpandedParticipant(isExpanded ? null : participant.id)}
+                        onClick={() => !isExpanded && setExpandedParticipant(participant.id)}
                       >
                         {/* Action buttons - top right */}
                         <div className="absolute top-2 right-2 flex gap-1 z-10 pointer-events-auto">
+                          {isExpanded && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedParticipant(null);
+                              }}
+                              className="w-8 h-8 flex items-center justify-center bg-white/90 hover:bg-red-500 hover:text-white neo-border rounded transition-colors text-sm font-bold"
+                              title="Close"
+                            >
+                              ✕
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -455,19 +473,23 @@ export default function VoterView() {
                           </button>
                         </div>
 
-                        <iframe
-                          srcDoc={`
-                            <!DOCTYPE html>
-                            <html>
-                              <head>
-                                <style>${participant.currentCode.css}</style>
-                              </head>
-                              <body>${participant.currentCode.html}</body>
-                            </html>
-                          `}
-                          sandbox="allow-same-origin"
-                          className="w-full h-full border-0 pointer-events-none"
-                        />
+                        <div
+                          className="w-full h-full"
+                          style={{
+                            transform: isExpanded ? 'scale(1)' : 'scale(0.25)',
+                            transformOrigin: 'top left',
+                            width: isExpanded ? '100%' : '400%',
+                            height: isExpanded ? '100%' : '400%',
+                          }}
+                        >
+                          <PreviewRenderer
+                            renderMode={game.renderMode}
+                            html={participant.currentCode.html}
+                            css={participant.currentCode.css}
+                            jsx={participant.currentCode.jsx}
+                            className={`w-full h-full border-0 ${isExpanded ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                          />
+                        </div>
                       </div>
 
                       {/* Reaction buttons during active game */}
