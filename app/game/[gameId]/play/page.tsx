@@ -108,8 +108,7 @@ export default function GamePlay() {
         return currentGame;
       });
     };
-
-    socket.addEventListener('close', handleClose);
+    // Pusher handles reconnection automatically, no need for close listener
 
     const cleanupGameState = onEvent(socket, 'game:state', (payload) => {
       const gameState = payload as Game;
@@ -216,7 +215,7 @@ export default function GamePlay() {
     });
 
     return () => {
-      socket.removeEventListener('close', handleClose);
+      // Pusher handles cleanup automatically
       cleanupGameState();
       cleanupStatusUpdate();
       cleanupPreviewUpdate();

@@ -28,7 +28,7 @@ export default function AdminGameView() {
   useEffect(() => {
     console.log('Admin useEffect running for gameCode:', gameCode);
     const socket = getSocket(gameCode);
-    console.log('Socket readyState:', socket.readyState);
+    console.log('Socket subscribed:', socket.subscribed);
 
     // Store cleanup functions from event listeners
     const cleanupFunctions: (() => void)[] = [];
@@ -67,8 +67,10 @@ export default function AdminGameView() {
       });
     };
 
-    socket.addEventListener('error', handleError);
-    socket.addEventListener('close', handleClose);
+    socket.bind('pusher:subscription_error', handleError);
+    socket.bind('pusher:subscription_succeeded', () => {
+      setIsDisconnected(false);
+    });
 
     // Listen for game events
     cleanupFunctions.push(
@@ -232,8 +234,8 @@ export default function AdminGameView() {
     );
 
     return () => {
-      socket.removeEventListener('error', handleError);
-      socket.removeEventListener('close', handleClose);
+      socket.unbind('pusher:subscription_error', handleError);
+      socket.unbind('pusher:subscription_succeeded');
 
       // Call all cleanup functions from event listeners
       cleanupFunctions.forEach(cleanup => cleanup());

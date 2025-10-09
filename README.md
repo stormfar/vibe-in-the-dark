@@ -1,6 +1,6 @@
 # 🎨 Vibe in the Dark
 
-A real-time multiplayer web app where participants attempt to replicate a target UI using only AI prompts (Claude API), without seeing their code. Built with Next.js, TypeScript, PartyKit, and Neobrutalism UI aesthetic.
+A real-time multiplayer web app where participants attempt to replicate a target UI using only AI prompts (Claude API), without seeing their code. Built with Next.js, TypeScript, Pusher Channels, and Neobrutalism UI aesthetic.
 
 ## 🎯 Game Concept
 
@@ -19,7 +19,7 @@ A real-time multiplayer web app where participants attempt to replicate a target
 - Node.js 20+
 - npm or yarn
 - Holidu LiteLLM access credentials (CLIENT_ID and CLIENT_SECRET)
-- GitHub account (for PartyKit deployment)
+- Pusher account (free tier available at https://dashboard.pusher.com/)
 
 ### Installation
 
@@ -28,7 +28,12 @@ A real-time multiplayer web app where participants attempt to replicate a target
    npm install
    ```
 
-2. **Set up environment variables:**
+2. **Set up Pusher:**
+   - Sign up for a free Pusher account at https://dashboard.pusher.com/
+   - Create a new Channels app
+   - Note down your App ID, Key, Secret, and Cluster
+
+3. **Set up environment variables:**
    ```bash
    cp .env.example .env
    ```
@@ -37,24 +42,21 @@ A real-time multiplayer web app where participants attempt to replicate a target
    ```env
    CLIENT_ID=gx-vibeinthedark-litellm-client
    CLIENT_SECRET=your-client-secret-here
-   NEXT_PUBLIC_PARTYKIT_HOST=localhost:1999
+
+   NEXT_PUBLIC_PUSHER_APP_KEY=your-app-key-here
+   NEXT_PUBLIC_PUSHER_CLUSTER=us2
+   PUSHER_APP_ID=your-app-id-here
+   PUSHER_APP_SECRET=your-app-secret-here
+
    NODE_ENV=development
    ```
 
-3. **Run the development servers:**
+4. **Run the development server:**
    ```bash
    npm run dev
    ```
 
-   This starts both the Next.js dev server (port 3000) and PartyKit dev server (port 1999) concurrently.
-
-   Alternatively, run them separately:
-   ```bash
-   npm run dev:next   # Next.js only
-   npm run dev:party  # PartyKit only
-   ```
-
-4. **Open your browser:**
+5. **Open your browser:**
    - Main app: [http://localhost:3000](http://localhost:3000)
    - Admin: [http://localhost:3000/admin/new](http://localhost:3000/admin/new)
 
@@ -99,7 +101,7 @@ A real-time multiplayer web app where participants attempt to replicate a target
 - **Framework:** Next.js 15 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS v4 + Neobrutalism design system
-- **Real-time:** PartyKit (WebSocket infrastructure on Cloudflare)
+- **Real-time:** Pusher Channels (WebSocket-like API)
 - **AI:** Holidu LiteLLM (claude-sonnet-4-20250514 via proxy)
 - **State:** In-memory (Map on server)
 - **Animations:** Framer Motion
@@ -108,7 +110,7 @@ A real-time multiplayer web app where participants attempt to replicate a target
 
 ### Key Features Implemented
 
-✅ Real-time WebSocket communication via PartyKit
+✅ Real-time communication via Pusher Channels
 ✅ In-memory game state management
 ✅ Claude AI prompt processing
 ✅ Neobrutalism UI components
@@ -135,14 +137,11 @@ A real-time multiplayer web app where participants attempt to replicate a target
 /lib
   /types.ts                           # TypeScript interfaces
   /gameState.ts                       # In-memory state management
-  /socket.ts                          # Server-side PartyKit HTTP utilities
-  /socketClient.ts                    # Client-side PartySocket wrapper
+  /socket.ts                          # Server-side Pusher HTTP utilities
+  /socketClient.ts                    # Client-side Pusher wrapper
   /claude.ts                          # Claude API wrapper
   /fingerprint.ts                     # FingerprintJS wrapper
 /components/ui                        # Neobrutalism UI components
-/partykit
-  /server.ts                          # PartyKit WebSocket server
-partykit.json                         # PartyKit configuration
 ```
 
 ## 🎨 Neobrutalism Design System
@@ -155,35 +154,31 @@ Bold Neobrutalism aesthetic with:
 
 ## 🔧 Development
 
-### Running the Servers
+### Running the Server
 
 ```bash
-npm run dev          # Run both Next.js and PartyKit dev servers
-npm run dev:next     # Run Next.js dev server only
-npm run dev:party    # Run PartyKit dev server only
-npm run build        # Build Next.js for production
-npm start            # Run Next.js production build
-npm run deploy:party # Deploy PartyKit server
+npm run dev      # Run Next.js dev server
+npm run build    # Build Next.js for production
+npm start        # Run Next.js production build
 ```
 
 ### Environment Variables
 
 - `CLIENT_ID` - Holidu LiteLLM client ID (required for AI prompt processing)
 - `CLIENT_SECRET` - Holidu LiteLLM client secret (required for AI prompt processing)
-- `NEXT_PUBLIC_PARTYKIT_HOST` - PartyKit server URL
-  - Development: `localhost:1999`
-  - Production: `your-project-name.your-github-username.partykit.dev`
+- `NEXT_PUBLIC_PUSHER_APP_KEY` - Pusher app key (from Pusher dashboard)
+- `NEXT_PUBLIC_PUSHER_CLUSTER` - Pusher cluster (e.g., us2, eu, ap1)
+- `PUSHER_APP_ID` - Pusher app ID (from Pusher dashboard)
+- `PUSHER_APP_SECRET` - Pusher app secret (from Pusher dashboard)
 - `NODE_ENV` - development | production
 
 ## 🚢 Deployment
 
-### Deploying to Vercel + PartyKit
+### Deploying to Vercel
 
-This app uses a **split deployment architecture**:
-- **Next.js frontend/backend** → Deploy to Vercel
-- **Real-time WebSocket layer** → Deploy to PartyKit (runs on Cloudflare)
+This app can be deployed entirely to Vercel since Pusher handles the real-time WebSocket layer.
 
-#### 1. Deploy Next.js to Vercel
+#### 1. Deploy to Vercel
 
 ```bash
 # Install Vercel CLI (if not already installed)
@@ -198,42 +193,28 @@ Or connect your GitHub repository to Vercel for automatic deployments.
 **Environment Variables on Vercel:**
 - `CLIENT_ID` - Your LiteLLM client ID
 - `CLIENT_SECRET` - Your LiteLLM client secret
-- `NEXT_PUBLIC_PARTYKIT_HOST` - Your PartyKit URL (see step 2)
+- `NEXT_PUBLIC_PUSHER_APP_KEY` - Your Pusher app key
+- `NEXT_PUBLIC_PUSHER_CLUSTER` - Your Pusher cluster
+- `PUSHER_APP_ID` - Your Pusher app ID
+- `PUSHER_APP_SECRET` - Your Pusher app secret
 - `NODE_ENV` - `production`
 
-#### 2. Deploy PartyKit Server
+#### 2. Pusher Setup
 
-```bash
-# Deploy to PartyKit (requires GitHub authentication on first run)
-npm run deploy:party
-```
+No deployment needed! Pusher is a hosted service. Just ensure your environment variables are set correctly in Vercel.
 
-This will:
-1. Open a browser for GitHub authentication (first time only)
-2. Deploy your PartyKit server to Cloudflare
-3. Provide a URL like: `vibe-in-the-dark.your-github-username.partykit.dev`
+**Pusher Free Tier Limits:**
+- 200,000 messages/day
+- 100 concurrent connections
+- Perfect for development and small games
 
-**Important:** After deploying PartyKit, update the `NEXT_PUBLIC_PARTYKIT_HOST` environment variable in Vercel with your PartyKit URL (without `http://` or `https://`).
-
-Example:
-```
-NEXT_PUBLIC_PARTYKIT_HOST=vibe-in-the-dark.yourname.partykit.dev
-```
-
-#### 3. Redeploy Vercel
-
-After updating the environment variable, trigger a redeployment on Vercel so the Next.js app connects to your PartyKit server.
+If you need more, Pusher's paid plans start at $49/month.
 
 ### Testing Local Development
 
-1. Start both servers: `npm run dev`
+1. Start the server: `npm run dev`
 2. Next.js will be available at `http://localhost:3000`
-3. PartyKit will be available at `http://localhost:1999`
-4. The frontend will automatically connect to the local PartyKit server
-
-### CI/CD (Optional)
-
-For automatic PartyKit deployments on git push, follow the [PartyKit GitHub Actions guide](https://docs.partykit.io/guides/deploying-your-partykit-server/).
+3. The frontend will automatically connect to Pusher's hosted service
 
 ## 🐛 Known Limitations
 
@@ -242,7 +223,7 @@ For automatic PartyKit deployments on git push, follow the [PartyKit GitHub Acti
 - No authentication system
 - Voting is device-based (can be circumvented)
 - LiteLLM API costs apply per prompt
-- PartyKit has usage limits on the free tier (see [PartyKit pricing](https://partykit.io/pricing))
+- Pusher free tier: 200k messages/day, 100 concurrent connections
 
 ## 📄 Licence
 

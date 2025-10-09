@@ -22,7 +22,8 @@
       "Bash(CLOUDFLARE_API_TOKEN=3iCD0cCT0HxyvT0YlfQ1iThsiSEtcgGW-anzZoOm npx wrangler deploy --env=production)",
       "Bash(node:*)",
       "Bash(sw_vers)",
-      "Bash(CLOUDFLARE_API_TOKEN=3iCD0cCT0HxyvT0YlfQ1iThsiSEtcgGW-anzZoOm npx wrangler tail vibe-in-the-dark --format pretty)"
+      "Bash(CLOUDFLARE_API_TOKEN=3iCD0cCT0HxyvT0YlfQ1iThsiSEtcgGW-anzZoOm npx wrangler tail vibe-in-the-dark --format pretty)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []

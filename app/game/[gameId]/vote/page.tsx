@@ -95,7 +95,7 @@ export default function VoterView() {
         return currentGame;
       });
     };
-    socket.addEventListener('close', handleClose);
+    // Pusher handles reconnection automatically, no need for close listener
 
     // Set up event listeners with cleanup functions
     const cleanupGameState = onEvent(socket, 'game:state', (payload) => {
@@ -190,7 +190,7 @@ export default function VoterView() {
     });
 
     return () => {
-      socket.removeEventListener('close', handleClose);
+      // Pusher handles cleanup automatically
       cleanupGameState();
       cleanupStatusUpdate();
       cleanupVoteUpdate();

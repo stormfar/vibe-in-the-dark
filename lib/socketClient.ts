@@ -1,62 +1,72 @@
 'use client';
 
-import PartySocket from 'partysocket';
+import Pusher, { Channel } from 'pusher-js';
 
-let socket: PartySocket | null = null;
+let pusherClient: Pusher | null = null;
+let currentChannel: Channel | null = null;
 
 /**
- * Get or create a PartySocket connection
- * @param gameCode The game code to connect to (room ID)
+ * Get or create a Pusher client connection
+ * @param gameCode The game code to connect to (channel name)
  */
-export function getSocket(gameCode?: string): PartySocket {
-  if (!socket || (gameCode && socket.room !== gameCode)) {
-    const host = process.env.NEXT_PUBLIC_PARTYKIT_HOST || 'localhost:1999';
-    const room = gameCode || 'lobby';
-
-    socket = new PartySocket({
-      host,
-      room,
+export function getSocket(gameCode?: string): Channel {
+  // Initialize Pusher client if not already done
+  if (!pusherClient) {
+    pusherClient = new Pusher(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
     });
   }
-  return socket;
+
+  const channelName = `game-${gameCode || 'lobby'}`;
+
+  // Subscribe to the channel if not already subscribed or if gameCode changed
+  if (!currentChannel || currentChannel.name !== channelName) {
+    if (currentChannel) {
+      pusherClient.unsubscribe(currentChannel.name);
+    }
+    currentChannel = pusherClient.subscribe(channelName);
+  }
+
+  return currentChannel;
 }
 
 /**
- * Disconnect the current socket
+ * Disconnect the current channel
  */
 export function disconnectSocket() {
-  if (socket) {
-    socket.close();
-    socket = null;
+  if (currentChannel && pusherClient) {
+    pusherClient.unsubscribe(currentChannel.name);
+    currentChannel = null;
   }
 }
 
 /**
- * Emit an event to the PartyKit server
+ * Emit an event to the Pusher server
+ * Note: Client events require a specific Pusher feature and are prefixed with "client-"
+ * For this app, we rely on server-side triggers via API routes
  */
-export function emitEvent(socket: PartySocket, type: string, payload: unknown) {
-  socket.send(JSON.stringify({ type, payload }));
+export function emitEvent(channel: Channel, type: string, payload: unknown) {
+  // Pusher client events are not used in this implementation
+  // All events are triggered from the server via HTTP API
+  console.log('[Pusher] Client-side emit called (no-op):', type);
 }
 
 /**
- * Listen for events from the PartyKit server
+ * Listen for events from the Pusher server
  */
-export function onEvent(socket: PartySocket, type: string, handler: (payload: unknown) => void) {
-  const messageHandler = (event: MessageEvent) => {
+export function onEvent(channel: Channel, type: string, handler: (payload: unknown) => void) {
+  const eventHandler = (data: any) => {
     try {
-      const data = JSON.parse(event.data);
-      if (data.type === type) {
-        handler(data.payload);
-      }
+      handler(data);
     } catch (error) {
-      console.error('[PartySocket] Error parsing message:', error);
+      console.error('[Pusher] Error handling event:', error);
     }
   };
 
-  socket.addEventListener('message', messageHandler);
+  channel.bind(type, eventHandler);
 
   // Return cleanup function
   return () => {
-    socket.removeEventListener('message', messageHandler);
+    channel.unbind(type, eventHandler);
   };
 }

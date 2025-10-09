@@ -1,3 +1,4 @@
+import Pusher from 'pusher';
 import type {
   GameStatusUpdateEvent,
   ParticipantJoinedEvent,
@@ -7,34 +8,24 @@ import type {
   WinnerDeclaredEvent,
 } from './types';
 
-/**
- * Get the PartyKit HTTP endpoint for a game room
- */
-function getPartyKitEndpoint(gameCode: string): string {
-  const host = process.env.NEXT_PUBLIC_PARTYKIT_HOST || 'localhost:1999';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  return `${protocol}://${host}/party/${gameCode}`;
-}
+// Initialize Pusher server client
+const pusherServer = new Pusher({
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY!,
+  secret: process.env.PUSHER_APP_SECRET!,
+  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+  useTLS: true,
+});
 
 /**
- * Broadcast an event to all clients in a game room via PartyKit HTTP API
+ * Broadcast an event to all clients in a game room via Pusher HTTP API
  */
-async function broadcastToRoom(gameCode: string, type: string, payload: unknown): Promise<void> {
+async function broadcastToRoom(gameCode: string, eventName: string, data: unknown): Promise<void> {
   try {
-    const endpoint = getPartyKitEndpoint(gameCode);
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ type, payload }),
-    });
-
-    if (!response.ok) {
-      console.error(`[PartyKit] Failed to broadcast event ${type}:`, response.statusText);
-    }
+    const channelName = `game-${gameCode}`;
+    await pusherServer.trigger(channelName, eventName, data);
   } catch (error) {
-    console.error(`[PartyKit] Error broadcasting event ${type}:`, error);
+    console.error(`[Pusher] Failed to broadcast event ${eventName}:`, error);
   }
 }
 
