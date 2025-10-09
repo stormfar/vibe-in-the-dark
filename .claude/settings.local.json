@@ -10,7 +10,11 @@
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(npx partykit build:*)",
+      "Bash(npx partykit deploy:*)",
+      "Bash(npx partykit:*)",
+      "Bash(ping:*)"
     ],
     "deny": [],
     "ask": []

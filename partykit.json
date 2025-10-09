@@ -1,4 +1,5 @@
 {
   "name": "vibe-in-the-dark",
-  "main": "partykit/server.ts"
+  "main": "partykit/server.ts",
+  "compatibilityDate": "2025-10-09"
 }

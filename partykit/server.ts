@@ -12,7 +12,7 @@ import type * as Party from "partykit/server";
  * 3. Next.js API routes broadcast updates via HTTP POST to PartyKit
  * 4. PartyKit relays those updates to all connected clients in the room
  */
-export default class VibeServer implements Party.Server {
+export class VibeServer implements Party.Server {
   constructor(readonly room: Party.Room) {}
 
   /**
@@ -93,3 +93,6 @@ export default class VibeServer implements Party.Server {
 }
 
 VibeServer satisfies Party.Worker;
+
+// Default export for PartyKit
+export default VibeServer;
