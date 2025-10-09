@@ -11,9 +11,10 @@ import { fetchGameState } from '@/lib/gameApi';
 import { getFingerprint } from '@/lib/fingerprint';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
 import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
 import PreviewRenderer from '@/components/PreviewRenderer';
-import type { Game, GameStatus, ReactionType } from '@/lib/types';
+import type { Game, GameStatus, ReactionType, WinnerDeclaredEvent } from '@/lib/types';
 
 const EMOJI_MAP: Record<ReactionType, string> = {
   fire: '🔥',
@@ -41,6 +42,7 @@ export default function GamePlay() {
   const [votedFor, setVotedFor] = useState<string | null>(null);
   const [fingerprint, setFingerprint] = useState<string>('');
   const [isDisconnected, setIsDisconnected] = useState(false);
+  const [showFinalStandings, setShowFinalStandings] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -185,12 +187,41 @@ export default function GamePlay() {
       }
     });
 
+    const cleanupWinnerDeclared = onEvent(socket, 'game:winnerDeclared', (payload) => {
+      const data = payload as WinnerDeclaredEvent;
+      setShowFinalStandings(true);
+
+      // Trigger confetti celebration
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.6 },
+      });
+      setTimeout(() => {
+        confetti({
+          particleCount: 100,
+          angle: 60,
+          spread: 80,
+          origin: { x: 0 },
+        });
+      }, 200);
+      setTimeout(() => {
+        confetti({
+          particleCount: 100,
+          angle: 120,
+          spread: 80,
+          origin: { x: 1 },
+        });
+      }, 400);
+    });
+
     return () => {
       socket.removeEventListener('close', handleClose);
       cleanupGameState();
       cleanupStatusUpdate();
       cleanupPreviewUpdate();
       cleanupReactionUpdate();
+      cleanupWinnerDeclared();
     };
   }, [participantId, gameCode, game]);
 
@@ -637,6 +668,110 @@ export default function GamePlay() {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Final Standings Modal */}
+      {showFinalStandings && game && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-8"
+          onClick={() => setShowFinalStandings(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.8, y: 50 }}
+            animate={{ scale: 1, y: 0 }}
+            className="bg-white neo-border neo-shadow-lg max-w-3xl w-full max-h-[80vh] overflow-auto p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-8">
+              <h2 className="font-[family-name:var(--font-display)] text-6xl mb-4">
+                FINAL STANDINGS
+              </h2>
+              <p className="text-xl text-gray-600">From glory to... well, you tried.</p>
+            </div>
+
+            <div className="space-y-4">
+              {game.participants
+                .sort((a, b) => b.voteCount - a.voteCount)
+                .map((participant, index) => {
+                  const isWinner = index === 0;
+                  const medals = ['🥇', '🥈', '🥉'];
+                  const medal = medals[index] || `${index + 1}.`;
+
+                  return (
+                    <motion.div
+                      key={participant.id}
+                      initial={{ opacity: 0, x: -50 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className={`flex items-center gap-4 p-4 neo-border ${
+                        isWinner ? 'bg-yellow-100 border-yellow-500' : 'bg-white'
+                      }`}
+                    >
+                      <div className="text-4xl font-bold w-16 text-center">
+                        {medal}
+                      </div>
+
+                      <div className="flex-1">
+                        <p className={`font-black ${isWinner ? 'text-2xl' : 'text-xl'}`}>
+                          {participant.name}
+                        </p>
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                          {participant.reactions.fire > 0 && (
+                            <span className="bg-orange-100 border-2 border-orange-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">🔥</span>
+                              <span className="text-lg font-bold">{participant.reactions.fire}</span>
+                            </span>
+                          )}
+                          {participant.reactions.laugh > 0 && (
+                            <span className="bg-yellow-100 border-2 border-yellow-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">😂</span>
+                              <span className="text-lg font-bold">{participant.reactions.laugh}</span>
+                            </span>
+                          )}
+                          {participant.reactions.think > 0 && (
+                            <span className="bg-blue-100 border-2 border-blue-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">🤔</span>
+                              <span className="text-lg font-bold">{participant.reactions.think}</span>
+                            </span>
+                          )}
+                          {participant.reactions.shock > 0 && (
+                            <span className="bg-purple-100 border-2 border-purple-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">😱</span>
+                              <span className="text-lg font-bold">{participant.reactions.shock}</span>
+                            </span>
+                          )}
+                          {participant.reactions.cool > 0 && (
+                            <span className="bg-teal-100 border-2 border-teal-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">😎</span>
+                              <span className="text-lg font-bold">{participant.reactions.cool}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={`text-right ${isWinner ? 'text-3xl' : 'text-2xl'} font-black`}>
+                        <div className="bg-pink-100 border-4 border-pink-500 rounded px-4 py-2">
+                          ❤️ {participant.voteCount}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+            </div>
+
+            <div className="mt-8 text-center">
+              <Button
+                variant="default"
+                className="text-lg py-4 px-8"
+                onClick={() => setShowFinalStandings(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
       )}
     </div>
     </>

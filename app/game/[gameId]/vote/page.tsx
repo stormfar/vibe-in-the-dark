@@ -42,6 +42,7 @@ export default function VoterView() {
   const [isReacting, setIsReacting] = useState(false);
   const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
   const [isDisconnected, setIsDisconnected] = useState(false);
+  const [showFinalStandings, setShowFinalStandings] = useState(false);
 
   // Fetch fingerprint
   useEffect(() => {
@@ -176,6 +177,9 @@ export default function VoterView() {
           participants: prev.participants.sort((a, b) => b.voteCount - a.voteCount),
         };
       });
+
+      // Show final standings modal
+      setShowFinalStandings(true);
 
       // Trigger confetti
       confetti({
@@ -523,7 +527,7 @@ export default function VoterView() {
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => handleReaction(participant.id, type)}
-                                disabled={isLoadingFingerprint || isReacting}
+                                disabled={game.status === 'finished' || isLoadingFingerprint || isReacting}
                                 className={`
                                   text-3xl w-14 h-14 rounded-lg border-3 border-black
                                   transition-all duration-200
@@ -531,7 +535,7 @@ export default function VoterView() {
                                     ? `${color} neo-shadow-lg scale-110`
                                     : 'bg-white hover:bg-gray-100 neo-border'
                                   }
-                                  ${isLoadingFingerprint || isReacting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                                  ${game.status === 'finished' || isLoadingFingerprint || isReacting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                                 `}
                                 title={label}
                               >
@@ -543,12 +547,12 @@ export default function VoterView() {
                       )}
 
                       {/* Vote button during voting */}
-                      {isVotingOpen && (
+                      {isVotingOpen && !isFinished && (
                         <Button
                           variant={hasVotedForThis ? 'blue' : 'pink'}
                           className="w-full"
                           onClick={() => handleVote(participant.id)}
-                          disabled={isLoadingFingerprint}
+                          disabled={isLoadingFingerprint || (votedFor !== null && votedFor !== participant.id)}
                         >
                           {hasVotedForThis
                             ? 'UNDO VOTE'
@@ -556,6 +560,15 @@ export default function VoterView() {
                             ? 'LOCKED IN'
                             : 'THIS ONE SLAPS 🔥'}
                         </Button>
+                      )}
+
+                      {/* Show message when voting has ended */}
+                      {isFinished && !isWinner && (
+                        <div className="text-center py-2">
+                          <p className="text-lg font-bold text-gray-600">
+                            Voting has ended
+                          </p>
+                        </div>
                       )}
 
                       {isFinished && isWinner && (
@@ -580,6 +593,110 @@ export default function VoterView() {
           </div>
         )}
       </div>
+
+      {/* Final Standings Modal */}
+      {showFinalStandings && game.status === 'finished' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-8"
+          onClick={() => setShowFinalStandings(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.8, y: 50 }}
+            animate={{ scale: 1, y: 0 }}
+            className="bg-white neo-border neo-shadow-lg max-w-3xl w-full max-h-[80vh] overflow-auto p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-8">
+              <h2 className="font-[family-name:var(--font-display)] text-6xl mb-4">
+                FINAL STANDINGS
+              </h2>
+              <p className="text-xl text-gray-600">From glory to... well, you tried.</p>
+            </div>
+
+            <div className="space-y-4">
+              {game.participants
+                .sort((a, b) => b.voteCount - a.voteCount)
+                .map((participant, index) => {
+                  const isWinner = index === 0;
+                  const medals = ['🥇', '🥈', '🥉'];
+                  const medal = medals[index] || `${index + 1}.`;
+
+                  return (
+                    <motion.div
+                      key={participant.id}
+                      initial={{ opacity: 0, x: -50 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className={`flex items-center gap-4 p-4 neo-border ${
+                        isWinner ? 'bg-yellow-100 border-yellow-500' : 'bg-white'
+                      }`}
+                    >
+                      <div className="text-4xl font-bold w-16 text-center">
+                        {medal}
+                      </div>
+
+                      <div className="flex-1">
+                        <p className={`font-black ${isWinner ? 'text-2xl' : 'text-xl'}`}>
+                          {participant.name}
+                        </p>
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                          {participant.reactions.fire > 0 && (
+                            <span className="bg-orange-100 border-2 border-orange-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">🔥</span>
+                              <span className="text-lg font-bold">{participant.reactions.fire}</span>
+                            </span>
+                          )}
+                          {participant.reactions.laugh > 0 && (
+                            <span className="bg-yellow-100 border-2 border-yellow-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">😂</span>
+                              <span className="text-lg font-bold">{participant.reactions.laugh}</span>
+                            </span>
+                          )}
+                          {participant.reactions.think > 0 && (
+                            <span className="bg-blue-100 border-2 border-blue-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">🤔</span>
+                              <span className="text-lg font-bold">{participant.reactions.think}</span>
+                            </span>
+                          )}
+                          {participant.reactions.shock > 0 && (
+                            <span className="bg-purple-100 border-2 border-purple-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">😱</span>
+                              <span className="text-lg font-bold">{participant.reactions.shock}</span>
+                            </span>
+                          )}
+                          {participant.reactions.cool > 0 && (
+                            <span className="bg-teal-100 border-2 border-teal-500 rounded px-2 py-1 flex items-center gap-1">
+                              <span className="text-2xl">😎</span>
+                              <span className="text-lg font-bold">{participant.reactions.cool}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={`text-right ${isWinner ? 'text-3xl' : 'text-2xl'} font-black`}>
+                        <div className="bg-pink-100 border-4 border-pink-500 rounded px-4 py-2">
+                          ❤️ {participant.voteCount}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+            </div>
+
+            <div className="mt-8 text-center">
+              <Button
+                variant="pink"
+                className="text-xl py-6 px-12"
+                onClick={() => setShowFinalStandings(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
     </>
   );
