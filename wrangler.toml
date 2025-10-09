@@ -1,10 +1,7 @@
 name = "vibe-in-the-dark"
 main = "partykit/server.ts"
-compatibility_date = "2025-10-09"
+compatibility_date = "2024-10-09"
 account_id = "b43bedffc180cea44aab504f7bf502ba"
-
-[env.production]
-vars = { NODE_ENV = "production" }
 
 [[durable_objects.bindings]]
 name = "VIBE_SERVER"

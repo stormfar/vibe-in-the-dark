@@ -8,7 +8,7 @@
     "dev:party": "partykit dev",
     "build": "next build",
     "start": "next start",
-    "deploy:party": "partykit deploy",
+    "deploy:party": "wrangler deploy",
     "lint": "eslint"
   },
   "dependencies": {

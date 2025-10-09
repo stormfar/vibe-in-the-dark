@@ -14,7 +14,12 @@
       "Bash(npx partykit build:*)",
       "Bash(npx partykit deploy:*)",
       "Bash(npx partykit:*)",
-      "Bash(ping:*)"
+      "Bash(ping:*)",
+      "Bash(curl:*)",
+      "Bash(CLOUDFLARE_ACCOUNT_ID=b43bedffc180cea44aab504f7bf502ba CLOUDFLARE_API_TOKEN=3iCD0cCT0HxyvT0YlfQ1iThsiSEtcgGW-anzZoOm npx partykit deploy --domain vibe-in-the-dark.stormfar.workers.dev)",
+      "Bash(npx wrangler:*)",
+      "Bash(CLOUDFLARE_API_TOKEN=3iCD0cCT0HxyvT0YlfQ1iThsiSEtcgGW-anzZoOm npx wrangler deploy)",
+      "Bash(CLOUDFLARE_API_TOKEN=3iCD0cCT0HxyvT0YlfQ1iThsiSEtcgGW-anzZoOm npx wrangler deploy --env=production)"
     ],
     "deny": [],
     "ask": []
