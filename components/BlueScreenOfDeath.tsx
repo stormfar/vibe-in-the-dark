@@ -102,7 +102,7 @@ export default function BlueScreenOfDeath({ variant = 'player' }: BlueScreenOfDe
                 What you can do:
               </p>
               <ul className="text-sm opacity-75 space-y-1">
-                <li>• Refresh the page (won't help, but it's worth a shot)</li>
+                <li>• Refresh the page (won&apos;t help, but it&apos;s worth a shot)</li>
                 <li>• Check if the server is actually running</li>
                 <li>• Question your life choices that led to this moment</li>
                 <li>• Make a cup of tea and try again later</li>
@@ -125,7 +125,7 @@ export default function BlueScreenOfDeath({ variant = 'player' }: BlueScreenOfDe
               />
             </div>
             <p className="text-xs opacity-50 text-center">
-              (Just kidding, this won't do anything. The server is gone.)
+              (Just kidding, this won&apos;t do anything. The server is gone.)
             </p>
           </div>
         </motion.div>

@@ -35,14 +35,12 @@ export async function POST(req: NextRequest) {
     // Update participant reaction count (additive)
     participant.reactions[reactionType]++;
 
-    // Emit reaction update via Socket.IO
-    const io = (global as { io?: import('socket.io').Server }).io;
-    if (io) {
-      io.to(game.code).emit('reaction:update', {
-        participantId,
-        reactions: participant.reactions,
-      });
-    }
+    // Emit reaction update via PartyKit
+    const { emitReactionUpdate } = await import('@/lib/socket');
+    await emitReactionUpdate(game.code, {
+      participantId,
+      reactions: participant.reactions,
+    });
 
     const response: ReactionResponse = {
       success: true,

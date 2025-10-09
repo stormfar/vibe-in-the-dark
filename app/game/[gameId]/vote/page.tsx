@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { getSocket } from '@/lib/socketClient';
+import { getSocket, onEvent } from '@/lib/socketClient';
+import { fetchGameState } from '@/lib/gameApi';
 import { getFingerprint } from '@/lib/fingerprint';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -68,24 +69,38 @@ export default function VoterView() {
     });
   }, [gameCode]);
 
-  // Socket.IO connection using gameCode
+  // PartySocket connection using gameCode
   useEffect(() => {
-    const socket = getSocket();
-    socket.emit('voter:join', gameCode);
+    const socket = getSocket(gameCode);
 
-    socket.on('disconnect', (reason) => {
-      console.warn('Socket disconnected:', reason);
+    // Fetch initial game state from API
+    fetchGameState(gameCode).then(gameState => {
+      if (gameState) {
+        console.log('Fetched initial game state:', gameState);
+        setGame(gameState);
+      } else {
+        toast.error('Game not found');
+      }
+    });
+
+    // Handle disconnect events
+    const handleClose = (event: CloseEvent) => {
+      console.warn('Socket disconnected:', event.reason);
       // Only show BSOD if game is active and disconnect was unexpected
       if (game && (game.status === 'active' || game.status === 'voting')) {
         setIsDisconnected(true);
       }
-    });
+    };
+    socket.addEventListener('close', handleClose);
 
-    socket.on('game:state', (gameState: Game) => {
+    // Set up event listeners with cleanup functions
+    const cleanupGameState = onEvent(socket, 'game:state', (payload) => {
+      const gameState = payload as Game;
       setGame(gameState);
     });
 
-    socket.on('game:statusUpdate', (update: { status: GameStatus }) => {
+    const cleanupStatusUpdate = onEvent(socket, 'game:statusUpdate', (payload) => {
+      const update = payload as { status: GameStatus };
       setGame(prev => {
         if (!prev) return prev;
         return { ...prev, status: update.status };
@@ -97,7 +112,8 @@ export default function VoterView() {
       }
     });
 
-    socket.on('vote:update', (update: { participantId: string; voteCount: number }) => {
+    const cleanupVoteUpdate = onEvent(socket, 'vote:update', (payload) => {
+      const update = payload as { participantId: string; voteCount: number };
       setGame(prev => {
         if (!prev) return prev;
         return {
@@ -111,7 +127,8 @@ export default function VoterView() {
       });
     });
 
-    socket.on('reaction:update', (update: ReactionUpdateEvent) => {
+    const cleanupReactionUpdate = onEvent(socket, 'reaction:update', (payload) => {
+      const update = payload as ReactionUpdateEvent;
       setGame(prev => {
         if (!prev) return prev;
         return {
@@ -125,7 +142,8 @@ export default function VoterView() {
       });
     });
 
-    socket.on('preview:update', (update: { participantId: string; html?: string; css?: string; jsx?: string }) => {
+    const cleanupPreviewUpdate = onEvent(socket, 'preview:update', (payload) => {
+      const update = payload as { participantId: string; html?: string; css?: string; jsx?: string };
       setGame(prev => {
         if (!prev) return prev;
         return {
@@ -144,7 +162,8 @@ export default function VoterView() {
       });
     });
 
-    socket.on('game:winnerDeclared', (data: { winnerId: string }) => {
+    const cleanupWinnerDeclared = onEvent(socket, 'game:winnerDeclared', (payload) => {
+      const data = payload as { winnerId: string };
       setGame(prev => {
         if (!prev) return prev;
         return {
@@ -164,13 +183,13 @@ export default function VoterView() {
     });
 
     return () => {
-      socket.off('disconnect');
-      socket.off('game:state');
-      socket.off('game:statusUpdate');
-      socket.off('vote:update');
-      socket.off('reaction:update');
-      socket.off('preview:update');
-      socket.off('game:winnerDeclared');
+      socket.removeEventListener('close', handleClose);
+      cleanupGameState();
+      cleanupStatusUpdate();
+      cleanupVoteUpdate();
+      cleanupReactionUpdate();
+      cleanupPreviewUpdate();
+      cleanupWinnerDeclared();
     };
   }, [gameCode, game]);
 

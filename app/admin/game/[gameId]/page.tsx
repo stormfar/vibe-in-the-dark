@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { getSocket } from '@/lib/socketClient';
+import { getSocket, onEvent } from '@/lib/socketClient';
+import { fetchGameState } from '@/lib/gameApi';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -25,180 +26,213 @@ export default function AdminGameView() {
 
   useEffect(() => {
     console.log('Admin useEffect running for gameCode:', gameCode);
-    const socket = getSocket();
-    console.log('Socket status:', socket.connected);
+    const socket = getSocket(gameCode);
+    console.log('Socket readyState:', socket.readyState);
 
-    // Add connection event listeners
-    socket.on('connect', () => {
-      console.log('Socket connected!');
-      socket.emit('admin:join', gameCode);
+    // Store cleanup functions from event listeners
+    const cleanupFunctions: (() => void)[] = [];
+
+    // Fetch initial game state from API
+    fetchGameState(gameCode).then(gameState => {
+      if (gameState) {
+        console.log('Fetched initial game state:', gameState);
+        setGame(gameState);
+
+        // Calculate time remaining if game is active
+        if (gameState.startTime && gameState.status === 'active') {
+          const elapsed = Date.now() - gameState.startTime;
+          setTimeRemaining(Math.max(0, gameState.duration - Math.floor(elapsed / 1000)));
+        }
+      } else {
+        toast.error('Game not found');
+      }
     });
 
-    socket.on('connect_error', (error) => {
+    // Handle connection error
+    const handleError = (error: Event) => {
       console.error('Socket connection error:', error);
       toast.error('Failed to connect to game server');
-    });
+    };
 
-    socket.on('disconnect', (reason) => {
-      console.warn('Socket disconnected:', reason);
+    // Handle connection close
+    const handleClose = () => {
+      console.warn('Socket disconnected');
       // Only show BSOD if game is active and disconnect was unexpected
       if (game && (game.status === 'active' || game.status === 'voting')) {
         setIsDisconnected(true);
       }
-    });
+    };
 
-    // If already connected, emit immediately
-    if (socket.connected) {
-      socket.emit('admin:join', gameCode);
-    }
+    socket.addEventListener('error', handleError);
+    socket.addEventListener('close', handleClose);
 
-    socket.on('game:state', (gameState: Game) => {
-      console.log('Received game state:', gameState);
-      setGame(gameState);
+    // Listen for game events
+    cleanupFunctions.push(
+      onEvent(socket, 'game:state', (payload) => {
+        const gameState = payload as Game;
+        console.log('Received game state:', gameState);
+        setGame(gameState);
 
-      // Calculate time remaining
-      if (gameState.startTime && gameState.status === 'active') {
-        const elapsed = Date.now() - gameState.startTime;
-        setTimeRemaining(Math.max(0, gameState.duration - Math.floor(elapsed / 1000)));
-      }
-    });
-
-    socket.on('game:error', (error: { message?: string }) => {
-      console.error('Game error:', error);
-      toast.error(error.message || 'Game not found');
-      // Set a flag to show error state instead of loading
-      setGame({ code: '', status: 'finished', targetType: 'image', targetImageUrl: '', duration: 0, maxPrompts: 3, maxCharacters: 1000, startTime: null, votingStartTime: null, createdAt: 0, participants: [], votes: [], reactions: [], winnerId: null } as Game);
-    });
-
-    socket.on('game:participantJoined', (data: { participant: { id: string; name: string } }) => {
-      toast.success(`${data.participant.name} joined the chaos!`);
-
-      // Immediately update local state with new participant
-      setGame(prev => {
-        if (!prev) return prev;
-
-        // Check if participant already exists (avoid duplicates)
-        if (prev.participants.some(p => p.id === data.participant.id)) {
-          return prev;
+        // Calculate time remaining
+        if (gameState.startTime && gameState.status === 'active') {
+          const elapsed = Date.now() - gameState.startTime;
+          setTimeRemaining(Math.max(0, gameState.duration - Math.floor(elapsed / 1000)));
         }
+      })
+    );
 
-        // Add new participant with default values
-        const newParticipant = {
-          id: data.participant.id,
-          name: data.participant.name,
-          socketId: '',
-          currentCode: {
-            html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start prompting!</h1></div>',
-            css: '',
-          },
-          promptHistory: [],
-          reactions: { fire: 0, laugh: 0, think: 0, shock: 0, cool: 0 },
-          voteCount: 0,
-          joinedAt: Date.now(),
-        };
+    cleanupFunctions.push(
+      onEvent(socket, 'game:error', (payload) => {
+        const error = payload as { message?: string };
+        console.error('Game error:', error);
+        toast.error(error.message || 'Game not found');
+        // Set a flag to show error state instead of loading
+        setGame({ code: '', status: 'finished', targetType: 'image', targetImageUrl: '', duration: 0, maxPrompts: 3, maxCharacters: 1000, renderMode: 'retro', startTime: null, votingStartTime: null, createdAt: 0, participants: [], votes: [], reactions: [], winnerId: null } as Game);
+      })
+    );
 
-        return {
-          ...prev,
-          participants: [...prev.participants, newParticipant],
-        };
-      });
-    });
+    cleanupFunctions.push(
+      onEvent(socket, 'game:participantJoined', (payload) => {
+        const data = payload as { participant: { id: string; name: string } };
+        toast.success(`${data.participant.name} joined the chaos!`);
 
-    socket.on('game:statusUpdate', (update: GameStatusUpdateEvent) => {
-      setGame(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          status: update.status,
-          startTime: update.startTime,
-        };
-      });
+        // Immediately update local state with new participant
+        setGame(prev => {
+          if (!prev) return prev;
 
-      if (update.status === 'active' && update.timeRemaining !== undefined) {
-        setTimeRemaining(update.timeRemaining);
-      }
-    });
+          // Check if participant already exists (avoid duplicates)
+          if (prev.participants.some(p => p.id === data.participant.id)) {
+            return prev;
+          }
 
-    socket.on('preview:update', (update: PreviewUpdateEvent) => {
-      setGame(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          participants: prev.participants.map(p =>
-            p.id === update.participantId
-              ? {
-                  ...p,
-                  currentCode: prev.renderMode === 'retro'
-                    ? { html: update.html, css: update.css }
-                    : { jsx: update.jsx },
-                  promptHistory: update.promptCount !== undefined
-                    ? Array(update.promptCount).fill({ prompt: '', timestamp: 0 })
-                    : p.promptHistory
-                }
-              : p
-          ),
-        };
-      });
-    });
+          // Add new participant with default values
+          const newParticipant = {
+            id: data.participant.id,
+            name: data.participant.name,
+            socketId: '',
+            currentCode: {
+              html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start prompting!</h1></div>',
+              css: '',
+            },
+            promptHistory: [],
+            reactions: { fire: 0, laugh: 0, think: 0, shock: 0, cool: 0 },
+            voteCount: 0,
+            joinedAt: Date.now(),
+          };
 
-    socket.on('vote:update', (update: VoteUpdateEvent) => {
-      setGame(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          participants: prev.participants.map(p =>
-            p.id === update.participantId
-              ? { ...p, voteCount: update.voteCount }
-              : p
-          ),
-        };
-      });
-    });
+          return {
+            ...prev,
+            participants: [...prev.participants, newParticipant],
+          };
+        });
+      })
+    );
 
-    socket.on('reaction:update', (update: ReactionUpdateEvent) => {
-      setGame(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          participants: prev.participants.map(p =>
-            p.id === update.participantId
-              ? { ...p, reactions: update.reactions }
-              : p
-          ),
-        };
-      });
-    });
+    cleanupFunctions.push(
+      onEvent(socket, 'game:statusUpdate', (payload) => {
+        const update = payload as GameStatusUpdateEvent;
+        setGame(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            status: update.status,
+            startTime: update.startTime,
+          };
+        });
 
-    socket.on('game:winnerDeclared', (data: WinnerDeclaredEvent) => {
-      setGame(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          status: 'finished',
-          winnerId: data.winnerId,
-          participants: prev.participants.sort((a, b) => b.voteCount - a.voteCount),
-        };
-      });
+        if (update.status === 'active' && update.timeRemaining !== undefined) {
+          setTimeRemaining(update.timeRemaining);
+        }
+      })
+    );
 
-      // Trigger confetti
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-    });
+    cleanupFunctions.push(
+      onEvent(socket, 'preview:update', (payload) => {
+        const update = payload as PreviewUpdateEvent;
+        setGame(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            participants: prev.participants.map(p =>
+              p.id === update.participantId
+                ? {
+                    ...p,
+                    currentCode: prev.renderMode === 'retro'
+                      ? { html: update.html, css: update.css }
+                      : { jsx: update.jsx },
+                    promptHistory: update.promptCount !== undefined
+                      ? Array(update.promptCount).fill({ prompt: '', timestamp: 0 })
+                      : p.promptHistory
+                  }
+                : p
+            ),
+          };
+        });
+      })
+    );
+
+    cleanupFunctions.push(
+      onEvent(socket, 'vote:update', (payload) => {
+        const update = payload as VoteUpdateEvent;
+        setGame(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            participants: prev.participants.map(p =>
+              p.id === update.participantId
+                ? { ...p, voteCount: update.voteCount }
+                : p
+            ),
+          };
+        });
+      })
+    );
+
+    cleanupFunctions.push(
+      onEvent(socket, 'reaction:update', (payload) => {
+        const update = payload as ReactionUpdateEvent;
+        setGame(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            participants: prev.participants.map(p =>
+              p.id === update.participantId
+                ? { ...p, reactions: update.reactions }
+                : p
+            ),
+          };
+        });
+      })
+    );
+
+    cleanupFunctions.push(
+      onEvent(socket, 'game:winnerDeclared', (payload) => {
+        const data = payload as WinnerDeclaredEvent;
+        setGame(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            status: 'finished',
+            winnerId: data.winnerId,
+            participants: prev.participants.sort((a, b) => b.voteCount - a.voteCount),
+          };
+        });
+
+        // Trigger confetti
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      })
+    );
 
     return () => {
-      socket.off('connect');
-      socket.off('connect_error');
-      socket.off('disconnect');
-      socket.off('game:state');
-      socket.off('game:participantJoined');
-      socket.off('game:statusUpdate');
-      socket.off('preview:update');
-      socket.off('vote:update');
-      socket.off('reaction:update');
-      socket.off('game:winnerDeclared');
+      socket.removeEventListener('error', handleError);
+      socket.removeEventListener('close', handleClose);
+
+      // Call all cleanup functions from event listeners
+      cleanupFunctions.forEach(cleanup => cleanup());
     };
   }, [gameCode, game]);
 

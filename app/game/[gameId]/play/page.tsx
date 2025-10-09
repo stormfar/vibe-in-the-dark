@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { getSocket } from '@/lib/socketClient';
+import { getSocket, onEvent } from '@/lib/socketClient';
+import { fetchGameState } from '@/lib/gameApi';
 import { getFingerprint } from '@/lib/fingerprint';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,10 +67,35 @@ export default function GamePlay() {
   useEffect(() => {
     if (!participantId || !gameCode) return;
 
-    const socket = getSocket();
-    socket.emit('game:join', { gameCode, participantId });
+    const socket = getSocket(gameCode);
 
-    socket.on('disconnect', (reason) => {
+    // Fetch initial game state from API
+    fetchGameState(gameCode).then(gameState => {
+      if (gameState) {
+        console.log('Fetched initial game state:', gameState);
+        setGame(gameState);
+
+        const participant = gameState.participants.find(p => p.id === participantId);
+        if (participant) {
+          setCurrentHtml(participant.currentCode.html || '');
+          setCurrentCss(participant.currentCode.css || '');
+          setPromptHistory(participant.promptHistory.map(p => p.prompt));
+        }
+
+        // Calculate time remaining if game is active
+        if (gameState.startTime && gameState.status === 'active') {
+          const elapsed = Date.now() - gameState.startTime;
+          const remaining = Math.max(0, gameState.duration - Math.floor(elapsed / 1000));
+          console.log('Active phase - setting time:', remaining);
+          setTimeRemaining(remaining);
+        }
+      } else {
+        toast.error('Game not found');
+      }
+    });
+
+    const cleanupDisconnect = onEvent(socket, 'disconnect', (payload) => {
+      const reason = payload as unknown;
       console.warn('Socket disconnected:', reason);
       // Only show BSOD if game is active and disconnect was unexpected
       if (game && (game.status === 'active' || game.status === 'voting')) {
@@ -77,13 +103,14 @@ export default function GamePlay() {
       }
     });
 
-    socket.on('game:state', (gameState: Game) => {
+    const cleanupGameState = onEvent(socket, 'game:state', (payload) => {
+      const gameState = payload as Game;
       setGame(gameState);
 
       const participant = gameState.participants.find(p => p.id === participantId);
       if (participant) {
-        setCurrentHtml(participant.currentCode.html);
-        setCurrentCss(participant.currentCode.css);
+        setCurrentHtml(participant.currentCode.html || '');
+        setCurrentCss(participant.currentCode.css || '');
         setPromptHistory(participant.promptHistory.map(p => p.prompt));
       }
 
@@ -96,7 +123,8 @@ export default function GamePlay() {
       }
     });
 
-    socket.on('game:statusUpdate', (update: { status: GameStatus; timeRemaining?: number }) => {
+    const cleanupStatusUpdate = onEvent(socket, 'game:statusUpdate', (payload) => {
+      const update = payload as { status: GameStatus; timeRemaining?: number };
       console.log('Play page received game:statusUpdate:', update);
 
       // Update game status
@@ -112,7 +140,8 @@ export default function GamePlay() {
       }
     });
 
-    socket.on('preview:update', (update: { participantId: string; html?: string; css?: string; jsx?: string }) => {
+    const cleanupPreviewUpdate = onEvent(socket, 'preview:update', (payload) => {
+      const update = payload as { participantId: string; html?: string; css?: string; jsx?: string };
       if (update.participantId === participantId) {
         if (update.html !== undefined) setCurrentHtml(update.html);
         if (update.css !== undefined) setCurrentCss(update.css);
@@ -120,7 +149,8 @@ export default function GamePlay() {
       }
     });
 
-    socket.on('reaction:update', (update: { participantId: string; reactions: Record<ReactionType, number> }) => {
+    const cleanupReactionUpdate = onEvent(socket, 'reaction:update', (payload) => {
+      const update = payload as { participantId: string; reactions: Record<ReactionType, number> };
       if (update.participantId === participantId) {
         // Someone reacted to this participant! Create floating emoji explosion
         // Find which reaction type increased
@@ -150,11 +180,11 @@ export default function GamePlay() {
     });
 
     return () => {
-      socket.off('disconnect');
-      socket.off('game:state');
-      socket.off('game:statusUpdate');
-      socket.off('preview:update');
-      socket.off('reaction:update');
+      cleanupDisconnect();
+      cleanupGameState();
+      cleanupStatusUpdate();
+      cleanupPreviewUpdate();
+      cleanupReactionUpdate();
     };
   }, [participantId, gameCode, game]);
 

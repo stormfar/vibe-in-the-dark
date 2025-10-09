@@ -7,7 +7,9 @@
       "Bash(do echo \"Installing $component...\")",
       "Bash(done)",
       "Bash(xargs:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []

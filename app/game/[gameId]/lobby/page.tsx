@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getSocket } from '@/lib/socketClient';
+import { getSocket, onEvent } from '@/lib/socketClient';
+import { fetchGameState } from '@/lib/gameApi';
 import { getRandomName } from '@/lib/randomNames';
 import { toast } from 'sonner';
 import type { Game, GameStatus } from '@/lib/types';
@@ -35,18 +36,14 @@ export default function GameLobby() {
   // Fetch game state to get existing participants (before joining)
   useEffect(() => {
     if (!hasJoined) {
-      const socket = getSocket();
-
-      // Request game state
-      socket.emit('voter:join', gameCode);
-
-      socket.on('game:state', (gameState: Game) => {
-        setGame(gameState);
+      fetchGameState(gameCode).then(gameState => {
+        if (gameState) {
+          console.log('Fetched initial game state:', gameState);
+          setGame(gameState);
+        } else {
+          toast.error('Game not found');
+        }
       });
-
-      return () => {
-        socket.off('game:state');
-      };
     }
   }, [hasJoined, gameCode]);
 
@@ -63,13 +60,26 @@ export default function GameLobby() {
     if (!hasJoined || !participantId) return;
 
     console.log('Participant joining with gameCode:', gameCode);
-    const socket = getSocket();
+    const socket = getSocket(gameCode);
 
-    // Join the game room with gameCode
-    socket.emit('game:join', { gameCode, participantId });
+    // Fetch initial game state from API
+    fetchGameState(gameCode).then(gameState => {
+      if (gameState) {
+        console.log('Fetched initial game state:', gameState);
+        setGame(gameState);
+
+        // If game has started, redirect to play page
+        if (gameState.status === 'active') {
+          router.push(`/game/${gameCode}/play`);
+        }
+      } else {
+        toast.error('Game not found');
+      }
+    });
 
     // Listen for game state
-    socket.on('game:state', (gameState: Game) => {
+    const cleanupState = onEvent(socket, 'game:state', (payload) => {
+      const gameState = payload as Game;
       setGame(gameState);
 
       // If game has started, redirect to play page
@@ -79,7 +89,8 @@ export default function GameLobby() {
     });
 
     // Listen for game:statusUpdate
-    socket.on('game:statusUpdate', (update: { status: GameStatus }) => {
+    const cleanupStatus = onEvent(socket, 'game:statusUpdate', (payload) => {
+      const update = payload as { status: GameStatus };
       console.log('Participant received game:statusUpdate:', update);
       if (update.status === 'active') {
         console.log('Redirecting to play page with gameCode:', gameCode);
@@ -88,7 +99,8 @@ export default function GameLobby() {
     });
 
     // Listen for new participants joining
-    socket.on('game:participantJoined', (data: { participant: { id: string; name: string } }) => {
+    const cleanupJoined = onEvent(socket, 'game:participantJoined', (payload) => {
+      const data = payload as { participant: { id: string; name: string } };
       console.log('New participant joined:', data.participant);
       setGame(prev => {
         if (!prev) return prev;
@@ -122,9 +134,9 @@ export default function GameLobby() {
     });
 
     return () => {
-      socket.off('game:state');
-      socket.off('game:statusUpdate');
-      socket.off('game:participantJoined');
+      cleanupState();
+      cleanupStatus();
+      cleanupJoined();
     };
   }, [hasJoined, participantId, gameCode, router]);
 
