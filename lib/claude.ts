@@ -33,7 +33,8 @@ Available shadcn/ui components you MUST use when appropriate (use default shadcn
 - Badge: <Badge variant="default|secondary|destructive|outline">Text</Badge>
 - Input: <Input type="text|email|password" placeholder="..." />
 - Textarea: <Textarea placeholder="..." />
-- Select: <Select><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="...">...</SelectItem></SelectContent></Select>
+- Select: <Select><SelectTrigger><SelectValue placeholder="Choose..." /></SelectTrigger><SelectContent><SelectItem value="option1">Option 1</SelectItem><SelectItem value="option2">Option 2</SelectItem></SelectContent></Select>
+  CRITICAL: Every <SelectItem> MUST have a unique, non-empty value prop (e.g., value="soft", value="medium", value="hard")
 - Dialog: <Dialog><DialogTrigger>...</DialogTrigger><DialogContent><DialogHeader><DialogTitle/></DialogHeader>...</DialogContent></Dialog>
 - Tabs: <Tabs><TabsList><TabsTrigger value="...">...</TabsTrigger></TabsList><TabsContent value="...">...</TabsContent></Tabs>
 - Accordion: <Accordion type="single"><AccordionItem value="..."><AccordionTrigger>...</AccordionTrigger><AccordionContent>...</AccordionContent></AccordionItem></Accordion>

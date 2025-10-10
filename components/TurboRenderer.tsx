@@ -64,20 +64,38 @@ import { Checkbox } from '@/components/ui/checkbox';
 function fixCommonJsxIssues(jsx: string): string {
   let fixed = jsx;
 
-  // Fix 1: Add missing value prop to SelectItem components
+  // Fix 1: Add missing value prop to SelectItem components (including multiline)
   // Match <SelectItem> tags without a value prop and add one based on the content
   fixed = fixed.replace(
-    /<SelectItem(\s+[^>]*?)?\s*>([^<]+)<\/SelectItem>/g,
+    /<SelectItem(\s+[^>]*?)?\s*>([\s\S]*?)<\/SelectItem>/g,
     (match, attrs, content) => {
-      // Check if value prop already exists
-      if (attrs && /value\s*=/.test(attrs)) {
-        return match; // Already has value prop
+      // Check if value prop already exists and is non-empty
+      const hasValueMatch = attrs?.match(/value\s*=\s*["']([^"']*)["']/);
+      if (hasValueMatch && hasValueMatch[1].trim()) {
+        return match; // Already has non-empty value prop
       }
 
-      // Generate a safe value from content (lowercase, no spaces)
-      const value = content.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      // If has empty value, remove it so we can add a proper one
+      let cleanAttrs = attrs || '';
+      if (hasValueMatch && !hasValueMatch[1].trim()) {
+        cleanAttrs = cleanAttrs.replace(/value\s*=\s*["'][^"']*["']\s*/g, '');
+      }
 
-      return `<SelectItem${attrs || ''} value="${value}">${content}</SelectItem>`;
+      // Extract text content (strip HTML tags and whitespace)
+      const textContent = content.replace(/<[^>]+>/g, '').trim();
+
+      // Generate a safe value from content (lowercase, no spaces, no special chars)
+      let value = textContent.toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/^-+|-+$/g, ''); // Remove leading/trailing dashes
+
+      // If we couldn't generate a value, use a UUID-like fallback
+      if (!value) {
+        value = `option-${Math.random().toString(36).substr(2, 9)}`;
+      }
+
+      return `<SelectItem${cleanAttrs ? ' ' + cleanAttrs.trim() : ''} value="${value}">${content}</SelectItem>`;
     }
   );
 
