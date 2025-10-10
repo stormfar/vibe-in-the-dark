@@ -1,6 +1,6 @@
 # 🎨 Vibe in the Dark
 
-A real-time multiplayer web app where participants attempt to replicate a target UI using only AI prompts (Claude API), without seeing their code. Built with Next.js, TypeScript, Pusher Channels, and Neobrutalism UI aesthetic.
+A real-time multiplayer web app where participants attempt to replicate a target UI using only AI prompts (Claude API), without seeing their code. Built with Next.js, TypeScript, Supabase Realtime, and Neobrutalism UI aesthetic.
 
 ## 🎯 Game Concept
 
@@ -19,7 +19,7 @@ A real-time multiplayer web app where participants attempt to replicate a target
 - Node.js 20+
 - npm or yarn
 - Holidu LiteLLM access credentials (CLIENT_ID and CLIENT_SECRET)
-- Pusher account (free tier available at https://dashboard.pusher.com/)
+- Supabase account (free tier available at https://supabase.com)
 
 ### Installation
 
@@ -28,10 +28,17 @@ A real-time multiplayer web app where participants attempt to replicate a target
    npm install
    ```
 
-2. **Set up Pusher:**
-   - Sign up for a free Pusher account at https://dashboard.pusher.com/
-   - Create a new Channels app
-   - Note down your App ID, Key, Secret, and Cluster
+2. **Set up Supabase:**
+   - Sign up for a free Supabase account at https://supabase.com
+   - Create a new project
+   - Wait for your project to be provisioned (~2 minutes)
+   - Go to Project Settings > API
+   - Note down your:
+     - **Project URL** (e.g., `https://xxxxx.supabase.co`)
+     - **Anon/Public Key** (starts with `eyJ...`)
+     - **Service Role Key** (starts with `eyJ...`, keep this secret!)
+
+   **Important:** No database setup required! Supabase Realtime works without any database tables. We only use the Broadcast feature for real-time messaging.
 
 3. **Set up environment variables:**
    ```bash
@@ -43,10 +50,9 @@ A real-time multiplayer web app where participants attempt to replicate a target
    CLIENT_ID=gx-vibeinthedark-litellm-client
    CLIENT_SECRET=your-client-secret-here
 
-   NEXT_PUBLIC_PUSHER_APP_KEY=your-app-key-here
-   NEXT_PUBLIC_PUSHER_CLUSTER=us2
-   PUSHER_APP_ID=your-app-id-here
-   PUSHER_APP_SECRET=your-app-secret-here
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 
    NODE_ENV=development
    ```
@@ -101,7 +107,7 @@ A real-time multiplayer web app where participants attempt to replicate a target
 - **Framework:** Next.js 15 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS v4 + Neobrutalism design system
-- **Real-time:** Pusher Channels (WebSocket-like API)
+- **Real-time:** Supabase Realtime (Broadcast feature)
 - **AI:** Holidu LiteLLM (claude-sonnet-4-20250514 via proxy)
 - **State:** In-memory (Map on server)
 - **Animations:** Framer Motion
@@ -110,7 +116,7 @@ A real-time multiplayer web app where participants attempt to replicate a target
 
 ### Key Features Implemented
 
-✅ Real-time communication via Pusher Channels
+✅ Real-time communication via Supabase Realtime Broadcast
 ✅ In-memory game state management
 ✅ Claude AI prompt processing
 ✅ Neobrutalism UI components
@@ -137,8 +143,8 @@ A real-time multiplayer web app where participants attempt to replicate a target
 /lib
   /types.ts                           # TypeScript interfaces
   /gameState.ts                       # In-memory state management
-  /socket.ts                          # Server-side Pusher HTTP utilities
-  /socketClient.ts                    # Client-side Pusher wrapper
+  /socket.ts                          # Server-side Supabase Realtime utilities
+  /socketClient.ts                    # Client-side Supabase Realtime wrapper
   /claude.ts                          # Claude API wrapper
   /fingerprint.ts                     # FingerprintJS wrapper
 /components/ui                        # Neobrutalism UI components
@@ -166,17 +172,16 @@ npm start        # Run Next.js production build
 
 - `CLIENT_ID` - Holidu LiteLLM client ID (required for AI prompt processing)
 - `CLIENT_SECRET` - Holidu LiteLLM client secret (required for AI prompt processing)
-- `NEXT_PUBLIC_PUSHER_APP_KEY` - Pusher app key (from Pusher dashboard)
-- `NEXT_PUBLIC_PUSHER_CLUSTER` - Pusher cluster (e.g., us2, eu, ap1)
-- `PUSHER_APP_ID` - Pusher app ID (from Pusher dashboard)
-- `PUSHER_APP_SECRET` - Pusher app secret (from Pusher dashboard)
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL (from Project Settings > API)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon/public key (from Project Settings > API)
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (from Project Settings > API, keep secret!)
 - `NODE_ENV` - development | production
 
 ## 🚢 Deployment
 
 ### Deploying to Vercel
 
-This app can be deployed entirely to Vercel since Pusher handles the real-time WebSocket layer.
+This app can be deployed entirely to Vercel since Supabase Realtime handles the real-time layer.
 
 #### 1. Deploy to Vercel
 
@@ -193,28 +198,37 @@ Or connect your GitHub repository to Vercel for automatic deployments.
 **Environment Variables on Vercel:**
 - `CLIENT_ID` - Your LiteLLM client ID
 - `CLIENT_SECRET` - Your LiteLLM client secret
-- `NEXT_PUBLIC_PUSHER_APP_KEY` - Your Pusher app key
-- `NEXT_PUBLIC_PUSHER_CLUSTER` - Your Pusher cluster
-- `PUSHER_APP_ID` - Your Pusher app ID
-- `PUSHER_APP_SECRET` - Your Pusher app secret
+- `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anon key
+- `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key
 - `NODE_ENV` - `production`
 
-#### 2. Pusher Setup
+#### 2. Supabase Setup
 
-No deployment needed! Pusher is a hosted service. Just ensure your environment variables are set correctly in Vercel.
+No additional deployment needed! Supabase is a hosted service. Just ensure your environment variables are set correctly in Vercel.
 
-**Pusher Free Tier Limits:**
-- 200,000 messages/day
-- 100 concurrent connections
-- Perfect for development and small games
+**Supabase Free Tier Limits:**
+- **Realtime:** 200 concurrent connections
+- **Bandwidth:** 5GB egress per month
+- **Messages:** Generous limits for realtime messaging
+- Perfect for development and production games
+- **No database setup required** - we only use Broadcast feature
 
-If you need more, Pusher's paid plans start at $49/month.
+If you need more, Supabase Pro is $25/month with significantly higher limits.
+
+### Why Supabase over Pusher?
+
+- **More reliable:** 6ms median latency (vs Pusher's instability)
+- **Better performance:** 224k messages/sec capability
+- **Cost-effective:** Free tier is more generous
+- **Better DX:** Simpler API, fewer connection issues
+- **Vercel-native:** Works perfectly on serverless
 
 ### Testing Local Development
 
 1. Start the server: `npm run dev`
 2. Next.js will be available at `http://localhost:3000`
-3. The frontend will automatically connect to Pusher's hosted service
+3. The frontend will automatically connect to Supabase's hosted Realtime service
 
 ## 🐛 Known Limitations
 
@@ -223,7 +237,7 @@ If you need more, Pusher's paid plans start at $49/month.
 - No authentication system
 - Voting is device-based (can be circumvented)
 - LiteLLM API costs apply per prompt
-- Pusher free tier: 200k messages/day, 100 concurrent connections
+- Supabase free tier: 200 concurrent connections
 
 ## 📄 Licence
 

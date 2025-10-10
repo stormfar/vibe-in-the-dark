@@ -1,4 +1,4 @@
-import Pusher from 'pusher';
+import { createClient } from '@supabase/supabase-js';
 import type {
   GameStatusUpdateEvent,
   ParticipantJoinedEvent,
@@ -8,26 +8,40 @@ import type {
   WinnerDeclaredEvent,
 } from './types';
 
-// Initialize Pusher server client
-const pusherServer = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY!,
-  secret: process.env.PUSHER_APP_SECRET!,
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-  useTLS: true,
+// Initialize Supabase server client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+const supabaseServer = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
 });
 
 /**
- * Broadcast an event to all clients in a game room via Pusher HTTP API
+ * Broadcast an event to all clients in a game room via Supabase Realtime
  */
 async function broadcastToRoom(gameCode: string, eventName: string, data: unknown): Promise<void> {
   try {
     const channelName = `game-${gameCode}`;
-    console.log(`[Pusher Server] Broadcasting "${eventName}" to channel "${channelName}"`, data);
-    await pusherServer.trigger(channelName, eventName, data);
-    console.log(`[Pusher Server] Successfully broadcasted "${eventName}"`);
+    console.log(`[Supabase Server] Broadcasting "${eventName}" to channel "${channelName}"`, data);
+
+    const channel = supabaseServer.channel(channelName);
+    await channel.subscribe();
+
+    await channel.send({
+      type: 'broadcast',
+      event: eventName,
+      payload: data,
+    });
+
+    console.log(`[Supabase Server] Successfully broadcasted "${eventName}"`);
+
+    // Clean up - unsubscribe after sending
+    await supabaseServer.removeChannel(channel);
   } catch (error) {
-    console.error(`[Pusher] Failed to broadcast event ${eventName}:`, error);
+    console.error(`[Supabase] Failed to broadcast event ${eventName}:`, error);
   }
 }
 

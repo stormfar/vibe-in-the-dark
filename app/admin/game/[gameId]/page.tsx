@@ -141,10 +141,7 @@ export default function AdminGameView() {
       });
     };
 
-    socket.bind('pusher:subscription_error', handleError);
-    socket.bind('pusher:subscription_succeeded', () => {
-      setIsDisconnected(false);
-    });
+    // Supabase handles connection state internally - no need for manual binding
 
     // Listen for game events
     cleanupFunctions.push(
@@ -309,9 +306,6 @@ export default function AdminGameView() {
     );
 
     return () => {
-      socket.unbind('pusher:subscription_error', handleError);
-      socket.unbind('pusher:subscription_succeeded');
-
       // Call all cleanup functions from event listeners
       cleanupFunctions.forEach(cleanup => cleanup());
 
