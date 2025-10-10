@@ -23,7 +23,9 @@ const pusherServer = new Pusher({
 async function broadcastToRoom(gameCode: string, eventName: string, data: unknown): Promise<void> {
   try {
     const channelName = `game-${gameCode}`;
+    console.log(`[Pusher Server] Broadcasting "${eventName}" to channel "${channelName}"`, data);
     await pusherServer.trigger(channelName, eventName, data);
+    console.log(`[Pusher Server] Successfully broadcasted "${eventName}"`);
   } catch (error) {
     console.error(`[Pusher] Failed to broadcast event ${eventName}:`, error);
   }

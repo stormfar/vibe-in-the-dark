@@ -45,6 +45,8 @@ export default function GamePlay() {
   const [showFinalStandings, setShowFinalStandings] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const handlersSetupRef = useRef<boolean>(false);
+  const lastReactionTimestampRef = useRef<number>(0);
 
   useEffect(() => {
     // Get participant ID from localStorage
@@ -58,17 +60,20 @@ export default function GamePlay() {
     // Get fingerprint for voting
     getFingerprint().then(fp => {
       setFingerprint(fp);
-      // Check if already voted
-      const votedKey = `voted_${gameCode}`;
-      const voted = localStorage.getItem(votedKey);
-      if (voted) {
-        setVotedFor(voted);
-      }
+      // Don't check localStorage for votes on play page
+      // Votes are only checked on the dedicated vote page
     });
   }, [gameCode]);
 
   useEffect(() => {
     if (!participantId || !gameCode) return;
+
+    // Prevent duplicate handler setup in React Strict Mode
+    if (handlersSetupRef.current) {
+      console.log('[Play] Handlers already set up, skipping duplicate setup');
+      return;
+    }
+    handlersSetupRef.current = true;
 
     const socket = getSocket(gameCode);
 
@@ -158,32 +163,85 @@ export default function GamePlay() {
 
     const cleanupReactionUpdate = onEvent(socket, 'reaction:update', (payload) => {
       const update = payload as { participantId: string; reactions: Record<ReactionType, number> };
-      if (update.participantId === participantId) {
-        // Someone reacted to this participant! Create floating emoji explosion
-        // Find which reaction type increased
-        const participant = game?.participants.find(p => p.id === participantId);
-        if (participant) {
-          for (const type of Object.keys(update.reactions) as ReactionType[]) {
-            if (update.reactions[type] > (participant.reactions[type] || 0)) {
-              // This reaction type increased - add floating emoji
-              const emoji = EMOJI_MAP[type];
-              const newEmoji = {
-                id: `${Date.now()}-${Math.random()}`,
-                emoji,
-                x: Math.random() * 80 + 10, // Random x position between 10% and 90%
-                y: Math.random() * 80 + 10, // Random y position between 10% and 90%
-              };
-              setFloatingEmojis(prev => [...prev, newEmoji]);
+      console.log('[Play] Received reaction:update event:', update);
 
-              // Remove after animation completes
-              setTimeout(() => {
-                setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id));
-              }, 2500);
-              break; // Only add one emoji per reaction event
+      if (update.participantId === participantId) {
+        console.log('[Play] Reaction is for current participant:', participantId);
+
+        // Deduplicate based on timestamp (handlers fire within milliseconds)
+        const now = Date.now();
+        if (now - lastReactionTimestampRef.current < 50) {
+          console.log('[Play] Skipping duplicate reaction within 50ms');
+          return;
+        }
+        lastReactionTimestampRef.current = now;
+
+        // Someone reacted to this participant! Create floating emoji explosion
+        // Get current game state to detect which reaction increased
+        setGame(currentGame => {
+          if (!currentGame) return currentGame;
+
+          const participant = currentGame.participants.find(p => p.id === participantId);
+          if (participant) {
+            console.log('[Play] Current reactions:', participant.reactions);
+            console.log('[Play] New reactions:', update.reactions);
+
+            // Find which reaction increased and show emoji immediately
+            for (const type of Object.keys(update.reactions) as ReactionType[]) {
+              if (update.reactions[type] > (participant.reactions[type] || 0)) {
+                console.log('[Play] Detected increased reaction type:', type);
+                console.log('[Play] Adding floating emoji for:', type);
+
+                const emoji = EMOJI_MAP[type];
+                const newEmoji = {
+                  id: `${Date.now()}-${Math.random()}`,
+                  emoji,
+                  x: Math.random() * 80 + 10,
+                  y: Math.random() * 80 + 10,
+                };
+
+                // Add emoji - use callback form to avoid closure issues
+                setFloatingEmojis(prev => [...prev, newEmoji]);
+
+                // Remove after animation completes
+                setTimeout(() => {
+                  setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id));
+                }, 2500);
+
+                break; // Only show one emoji per reaction event
+              }
             }
           }
-        }
+
+          // Update the participant's reaction counts in game state
+          return {
+            ...currentGame,
+            participants: currentGame.participants.map(p =>
+              p.id === participantId
+                ? { ...p, reactions: update.reactions }
+                : p
+            ),
+          };
+        });
       }
+    });
+
+    const cleanupVoteUpdate = onEvent(socket, 'vote:update', (payload) => {
+      const update = payload as { participantId: string; voteCount: number };
+      console.log('[Play] Received vote:update event:', update);
+
+      // Update vote count for the participant
+      setGame(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          participants: prev.participants.map(p =>
+            p.id === update.participantId
+              ? { ...p, voteCount: update.voteCount }
+              : p
+          ),
+        };
+      });
     });
 
     const cleanupWinnerDeclared = onEvent(socket, 'game:winnerDeclared', (payload) => {
@@ -215,14 +273,17 @@ export default function GamePlay() {
     });
 
     return () => {
+      // Reset the flag so handlers can be set up again if needed
+      handlersSetupRef.current = false;
       // Pusher handles cleanup automatically
       cleanupGameState();
       cleanupStatusUpdate();
       cleanupPreviewUpdate();
       cleanupReactionUpdate();
+      cleanupVoteUpdate();
       cleanupWinnerDeclared();
     };
-  }, [participantId, gameCode, game]);
+  }, [participantId, gameCode]);
 
   // Timer countdown - recalculate from server time
   useEffect(() => {
@@ -300,7 +361,9 @@ export default function GamePlay() {
   };
 
   const handleVote = async (targetParticipantId: string) => {
-    if (!fingerprint) return;
+    if (!fingerprint || !game?.createdAt) return;
+
+    const votedKey = `voted_${gameCode}_${game.createdAt}`;
 
     // Check if trying to undo vote
     if (votedFor === targetParticipantId) {
@@ -322,7 +385,7 @@ export default function GamePlay() {
         }
 
         setVotedFor(null);
-        localStorage.removeItem(`voted_${gameCode}`);
+        localStorage.removeItem(votedKey);
         toast.success('Vote undone! You can vote again.');
       } catch {
         toast.error('Failed to undo vote');
@@ -331,7 +394,10 @@ export default function GamePlay() {
     }
 
     // Check if already voted for someone else
-    if (votedFor) return;
+    if (votedFor) {
+      toast.error('You already voted! Click your vote to undo it first.');
+      return;
+    }
 
     try {
       const response = await fetch('/api/vote', {
@@ -351,7 +417,7 @@ export default function GamePlay() {
       }
 
       setVotedFor(targetParticipantId);
-      localStorage.setItem(`voted_${gameCode}`, targetParticipantId);
+      localStorage.setItem(votedKey, targetParticipantId);
       toast.success('Vote recorded!');
     } catch {
       toast.error('Failed to vote');

@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
+  logging: {
+    fetches: {
+      fullUrl: false,
+    },
+  },
 };
 
 export default nextConfig;

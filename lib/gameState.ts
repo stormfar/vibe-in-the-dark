@@ -189,6 +189,16 @@ export function openVoting(gameCode: string): boolean {
   game.status = 'voting';
   game.votingStartTime = Date.now();
 
+  // Clear old votes from previous game sessions
+  game.votes = [];
+
+  // Reset vote counts for all participants
+  game.participants.forEach(p => {
+    p.voteCount = 0;
+  });
+
+  console.log('[openVoting] Cleared votes and reset vote counts for fresh voting session');
+
   return true;
 }
 
@@ -208,7 +218,13 @@ export function addVote(
   }
 
   // Check if already voted
-  if (game.votes.some(v => v.voterFingerprint === voterFingerprint)) {
+  const alreadyVoted = game.votes.some(v => v.voterFingerprint === voterFingerprint);
+  console.log('[addVote] Checking if already voted:', {
+    voterFingerprint,
+    alreadyVoted,
+    existingVotes: game.votes.map(v => ({ fp: v.voterFingerprint, participantId: v.participantId })),
+  });
+  if (alreadyVoted) {
     return { success: false, voteCount: 0, error: 'You already voted, greedy!' };
   }
 
@@ -248,6 +264,11 @@ export function removeVote(
 
   // Find the vote
   const voteIndex = game.votes.findIndex(v => v.voterFingerprint === voterFingerprint);
+  console.log('[removeVote] Looking for vote to remove:', {
+    voterFingerprint,
+    voteIndex,
+    totalVotes: game.votes.length,
+  });
   if (voteIndex === -1) {
     return { success: false, error: 'No vote found to undo' };
   }
@@ -261,6 +282,7 @@ export function removeVote(
   // Remove vote
   game.votes.splice(voteIndex, 1);
   participant.voteCount = Math.max(0, participant.voteCount - 1);
+  console.log('[removeVote] Successfully removed vote. Remaining votes:', game.votes.length);
 
   return {
     success: true,

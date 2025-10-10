@@ -50,25 +50,28 @@ export default function VoterView() {
       setFingerprint(fp);
       setIsLoadingFingerprint(false);
 
-      // Check if already voted
-      const votedKey = `voted_${gameCode}`;
-      const voted = localStorage.getItem(votedKey);
-      if (voted) {
-        setVotedFor(voted);
-      }
+      // Only load vote/reaction data once we have game state with createdAt
+      if (game?.createdAt) {
+        // Check if already voted - use createdAt to scope to this game session
+        const votedKey = `voted_${gameCode}_${game.createdAt}`;
+        const voted = localStorage.getItem(votedKey);
+        if (voted) {
+          setVotedFor(voted);
+        }
 
-      // Load stored reactions
-      const reactionsKey = `reactions_${gameCode}`;
-      const stored = localStorage.getItem(reactionsKey);
-      if (stored) {
-        try {
-          setMyReactions(JSON.parse(stored));
-        } catch (e) {
-          console.error('Failed to parse stored reactions:', e);
+        // Load stored reactions
+        const reactionsKey = `reactions_${gameCode}_${game.createdAt}`;
+        const stored = localStorage.getItem(reactionsKey);
+        if (stored) {
+          try {
+            setMyReactions(JSON.parse(stored));
+          } catch (e) {
+            console.error('Failed to parse stored reactions:', e);
+          }
         }
       }
     });
-  }, [gameCode]);
+  }, [gameCode, game?.createdAt]);
 
   // PartySocket connection using gameCode
   useEffect(() => {
@@ -198,10 +201,12 @@ export default function VoterView() {
       cleanupPreviewUpdate();
       cleanupWinnerDeclared();
     };
-  }, [gameCode, game]);
+  }, [gameCode]);
 
   const handleVote = async (participantId: string) => {
-    if (!fingerprint) return;
+    if (!fingerprint || !game?.createdAt) return;
+
+    const votedKey = `voted_${gameCode}_${game.createdAt}`;
 
     // Check if trying to undo vote
     if (votedFor === participantId) {
@@ -223,7 +228,7 @@ export default function VoterView() {
         }
 
         setVotedFor(null);
-        localStorage.removeItem(`voted_${gameCode}`);
+        localStorage.removeItem(votedKey);
         toast.success('Vote undone! You can vote again.');
       } catch {
         toast.error('Failed to undo vote');
@@ -252,7 +257,7 @@ export default function VoterView() {
       }
 
       setVotedFor(participantId);
-      localStorage.setItem(`voted_${gameCode}`, participantId);
+      localStorage.setItem(votedKey, participantId);
       toast.success('Vote recorded!');
     } catch {
       toast.error('Failed to vote');
@@ -291,7 +296,9 @@ export default function VoterView() {
       // Update local state
       const newReactions = { ...myReactions, [participantId]: reactionType };
       setMyReactions(newReactions);
-      localStorage.setItem(`reactions_${gameCode}`, JSON.stringify(newReactions));
+      if (game.createdAt) {
+        localStorage.setItem(`reactions_${gameCode}_${game.createdAt}`, JSON.stringify(newReactions));
+      }
 
       // Optimistically update the participant's reaction counts
       setGame(prev => {
@@ -330,8 +337,8 @@ export default function VoterView() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="font-[family-name:var(--font-display)] text-6xl mb-4 rotate-[-1deg] inline-block">
-            <span className="neo-border bg-neo-pink text-white px-6 py-3 neo-shadow-lg">
+          <h1 className="font-[family-name:var(--font-display)] text-3xl sm:text-6xl mb-4 rotate-[-1deg] inline-block">
+            <span className="neo-border bg-neo-pink text-white px-4 sm:px-6 py-2 sm:py-3 neo-shadow-lg">
               WHO DID IT BEST?
             </span>
           </h1>
@@ -408,40 +415,50 @@ export default function VoterView() {
                   >
                     <CardContent className="p-0 space-y-3">
                       {/* Name, reactions, and votes */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-black text-lg">
-                            {isWinner && '👑 '}
-                            {participant.name}
-                          </p>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <p className="font-black text-lg">
+                              {isWinner && '👑 '}
+                              {participant.name}
+                            </p>
+                            {/* Vote count on mobile - inline with name */}
+                            {isVotingOpen && (
+                              <Badge variant="pink" className="text-base sm:text-lg px-2 sm:px-3 py-0.5 sm:py-1 sm:hidden">
+                                ❤️ {participant.voteCount}
+                              </Badge>
+                            )}
+                          </div>
 
-                          {/* Reaction counts */}
-                          <AnimatePresence mode="popLayout">
-                            {EMOJI_REACTIONS.map(({ type, emoji, color }) => {
-                              const count = participant.reactions[type] || 0;
-                              if (count === 0) return null;
+                          {/* Reaction counts - below name on mobile */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <AnimatePresence mode="popLayout">
+                              {EMOJI_REACTIONS.map(({ type, emoji, color }) => {
+                                const count = participant.reactions[type] || 0;
+                                if (count === 0) return null;
 
-                              return (
-                                <motion.div
-                                  key={type}
-                                  initial={{ scale: 0, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  exit={{ scale: 0, opacity: 0 }}
-                                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                                >
-                                  <Badge className={`${color} text-white px-2 py-0.5 border-black flex items-center gap-1`}>
-                                    <span className="text-2xl">{emoji}</span>
-                                    <span className="text-lg font-bold">{count}</span>
-                                  </Badge>
-                                </motion.div>
-                              );
-                            })}
-                          </AnimatePresence>
+                                return (
+                                  <motion.div
+                                    key={type}
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0, opacity: 0 }}
+                                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                                  >
+                                    <Badge className={`${color} text-white px-1.5 py-0.5 border-black flex items-center gap-0.5`}>
+                                      <span className="text-xl sm:text-2xl">{emoji}</span>
+                                      <span className="text-sm sm:text-lg font-bold">{count}</span>
+                                    </Badge>
+                                  </motion.div>
+                                );
+                              })}
+                            </AnimatePresence>
+                          </div>
                         </div>
 
-                        {/* Vote count */}
+                        {/* Vote count on desktop */}
                         {isVotingOpen && (
-                          <Badge variant="pink" className="text-lg px-3 py-1">
+                          <Badge variant="pink" className="hidden sm:block text-lg px-3 py-1">
                             ❤️ {participant.voteCount}
                           </Badge>
                         )}
@@ -518,7 +535,7 @@ export default function VoterView() {
 
                       {/* Reaction buttons during active game */}
                       {canReact && (
-                        <div className="flex justify-center gap-2 flex-wrap">
+                        <div className="flex justify-center gap-1.5 sm:gap-2 flex-wrap">
                           {EMOJI_REACTIONS.map(({ type, emoji, label, color }) => {
                             const isSelected = myReactionForThis === type;
                             return (
@@ -529,7 +546,7 @@ export default function VoterView() {
                                 onClick={() => handleReaction(participant.id, type)}
                                 disabled={game.status === 'finished' || isLoadingFingerprint || isReacting}
                                 className={`
-                                  text-3xl w-14 h-14 rounded-lg border-3 border-black
+                                  text-2xl sm:text-3xl w-11 h-11 sm:w-14 sm:h-14 rounded-lg border-3 border-black
                                   transition-all duration-200
                                   ${isSelected
                                     ? `${color} neo-shadow-lg scale-110`

@@ -12,7 +12,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
 import PreviewRenderer from '@/components/PreviewRenderer';
-import type { Game, GameStatusUpdateEvent, PreviewUpdateEvent, VoteUpdateEvent, ReactionUpdateEvent, WinnerDeclaredEvent } from '@/lib/types';
+import { getFingerprint } from '@/lib/fingerprint';
+import type { Game, GameStatusUpdateEvent, PreviewUpdateEvent, VoteUpdateEvent, ReactionUpdateEvent, WinnerDeclaredEvent, ReactionType, ReactionRequest, ReactionResponse } from '@/lib/types';
 
 export default function AdminGameView() {
   const params = useParams();
@@ -24,11 +25,70 @@ export default function AdminGameView() {
   const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isDisconnected, setIsDisconnected] = useState(false);
+  const [fingerprint, setFingerprint] = useState<string>('');
+  const [isReacting, setIsReacting] = useState(false);
+
+  // Fetch fingerprint for admin reactions
+  useEffect(() => {
+    getFingerprint().then(fp => setFingerprint(fp));
+  }, []);
+
+  const EMOJI_REACTIONS: { type: ReactionType; emoji: string; label: string; color: string }[] = [
+    { type: 'fire', emoji: '🔥', label: 'Fire', color: 'bg-orange-400' },
+    { type: 'laugh', emoji: '😂', label: 'Laugh', color: 'bg-yellow-400' },
+    { type: 'think', emoji: '🤔', label: 'Think', color: 'bg-blue-400' },
+    { type: 'shock', emoji: '😱', label: 'Shock', color: 'bg-purple-500' },
+    { type: 'cool', emoji: '😎', label: 'Cool', color: 'bg-teal-500' },
+  ];
+
+  const handleReaction = async (participantId: string, reactionType: ReactionType) => {
+    if (!fingerprint || !game || isReacting) return;
+
+    setIsReacting(true);
+    setTimeout(() => setIsReacting(false), 100);
+
+    try {
+      const requestBody: ReactionRequest = {
+        gameCode,
+        participantId,
+        reactionType,
+        voterFingerprint: fingerprint,
+      };
+
+      const response = await fetch('/api/react', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to react');
+        return;
+      }
+
+      const data: ReactionResponse = await response.json();
+
+      // Optimistically update the participant's reaction counts
+      setGame(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          participants: prev.participants.map(p =>
+            p.id === participantId
+              ? { ...p, reactions: data.reactions }
+              : p
+          ),
+        };
+      });
+    } catch (error) {
+      console.error('Failed to react:', error);
+      toast.error('Failed to react');
+    }
+  };
 
   useEffect(() => {
-    console.log('Admin useEffect running for gameCode:', gameCode);
     const socket = getSocket(gameCode);
-    console.log('Socket subscribed:', socket.subscribed);
 
     // Store cleanup functions from event listeners
     const cleanupFunctions: (() => void)[] = [];
@@ -36,7 +96,6 @@ export default function AdminGameView() {
     // Fetch initial game state from API
     fetchGameState(gameCode).then(gameState => {
       if (gameState) {
-        console.log('Fetched initial game state:', gameState);
         setGame(gameState);
 
         // Calculate time remaining if game is active
@@ -240,7 +299,7 @@ export default function AdminGameView() {
       // Call all cleanup functions from event listeners
       cleanupFunctions.forEach(cleanup => cleanup());
     };
-  }, [gameCode, game]);
+  }, [gameCode]);
 
   const handleStartGame = useCallback(async () => {
     try {
@@ -384,6 +443,13 @@ export default function AdminGameView() {
         <Card className="max-w-2xl w-full p-8">
           <div className="text-center space-y-6">
             <div>
+              <p className="font-bold text-lg mb-4">Players visit:</p>
+              <div className="neo-border bg-white inline-block px-6 py-3 mb-4">
+                <p className="text-2xl font-bold text-neo-blue">
+                  {process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}
+                </p>
+              </div>
+
               <p className="font-bold text-sm mb-2">GAME CODE:</p>
               <div className="neo-border bg-neo-yellow inline-block p-8 animate-pulse">
                 <p className="font-[family-name:var(--font-display)] text-7xl">
@@ -490,7 +556,7 @@ export default function AdminGameView() {
             <div className="ml-4 text-sm flex items-center gap-2">
               <p className="font-bold text-gray-600">Voting/Reaction Link:</p>
               <Badge variant="blue" className="text-base px-4 py-2">
-                {typeof window !== 'undefined' ? window.location.origin : ''} + code: {game.code}
+                {process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'} + code: {game.code}
               </Badge>
             </div>
           </div>
@@ -687,6 +753,29 @@ export default function AdminGameView() {
                         />
                       </div>
                     </div>
+
+                    {/* Admin reaction buttons */}
+                    {(game.status === 'active' || game.status === 'voting') && fingerprint && (
+                      <div className="flex justify-center gap-1 mt-2 flex-wrap">
+                        {EMOJI_REACTIONS.map(({ type, emoji, label, color }) => (
+                          <motion.button
+                            key={type}
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleReaction(participant.id, type)}
+                            disabled={isReacting}
+                            className={`
+                              text-xl w-8 h-8 rounded border-2 border-black
+                              transition-all duration-200 bg-white hover:${color}
+                              ${isReacting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
+                            `}
+                            title={label}
+                          >
+                            {emoji}
+                          </motion.button>
+                        ))}
+                      </div>
+                    )}
                   </Card>
                 </motion.div>
               );

@@ -12,8 +12,25 @@ let currentChannel: Channel | null = null;
 export function getSocket(gameCode?: string): Channel {
   // Initialize Pusher client if not already done
   if (!pusherClient) {
-    pusherClient = new Pusher(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+    const key = process.env.NEXT_PUBLIC_PUSHER_APP_KEY;
+    const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+
+    console.log('[Pusher] Initializing client with key:', key?.substring(0, 10) + '...', 'cluster:', cluster);
+
+    if (!key || key === 'your-app-key-here') {
+      console.error('[Pusher] Invalid app key! Please set NEXT_PUBLIC_PUSHER_APP_KEY in .env');
+    }
+
+    pusherClient = new Pusher(key!, {
+      cluster: cluster!,
+    });
+
+    pusherClient.connection.bind('error', (err: any) => {
+      console.error('[Pusher] Connection error:', err);
+    });
+
+    pusherClient.connection.bind('connected', () => {
+      console.log('[Pusher] Connected to Pusher');
     });
   }
 
@@ -25,6 +42,14 @@ export function getSocket(gameCode?: string): Channel {
       pusherClient.unsubscribe(currentChannel.name);
     }
     currentChannel = pusherClient.subscribe(channelName);
+
+    currentChannel.bind('pusher:subscription_succeeded', () => {
+      console.log('[Pusher] Successfully subscribed to:', channelName);
+    });
+
+    currentChannel.bind('pusher:subscription_error', (status: any) => {
+      console.error('[Pusher] Subscription error:', status);
+    });
   }
 
   return currentChannel;
@@ -63,9 +88,10 @@ export function onEvent(channel: Channel, type: string, handler: (payload: unkno
     }
   };
 
+  // Bind the handler
   channel.bind(type, eventHandler);
 
-  // Return cleanup function
+  // Return cleanup function that unbinds only this specific handler
   return () => {
     channel.unbind(type, eventHandler);
   };
