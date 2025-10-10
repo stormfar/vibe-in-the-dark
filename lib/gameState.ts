@@ -5,9 +5,11 @@ import type { Game, Participant, Vote, RenderMode } from './types';
 // This is necessary because Next.js API routes and the custom server may load this module separately
 declare global {
   var games: Map<string, Game> | undefined;
+  var gameTimers: Map<string, NodeJS.Timeout> | undefined;
 }
 
 const games = global.games || (global.games = new Map<string, Game>());
+const gameTimers = global.gameTimers || (global.gameTimers = new Map<string, NodeJS.Timeout>());
 
 // Generate unique 6-character game code
 function generateGameCode(): string {
@@ -197,9 +199,30 @@ export function openVoting(gameCode: string): boolean {
     p.voteCount = 0;
   });
 
+  // Clear any pending auto-open timer since we're manually opening voting
+  clearGameTimer(gameCode);
+
   console.log('[openVoting] Cleared votes and reset vote counts for fresh voting session');
 
   return true;
+}
+
+// Timer management functions
+export function setGameTimer(gameCode: string, timer: NodeJS.Timeout): void {
+  gameTimers.set(gameCode.toUpperCase(), timer);
+}
+
+export function clearGameTimer(gameCode: string): void {
+  const timer = gameTimers.get(gameCode.toUpperCase());
+  if (timer) {
+    clearTimeout(timer);
+    gameTimers.delete(gameCode.toUpperCase());
+    console.log(`[Timer] Cleared timer for game ${gameCode}`);
+  }
+}
+
+export function getGameTimer(gameCode: string): NodeJS.Timeout | undefined {
+  return gameTimers.get(gameCode.toUpperCase());
 }
 
 // Add vote

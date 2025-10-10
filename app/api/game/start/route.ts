@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startGame, getGame, moveToActive } from '@/lib/gameState';
+import { startGame, getGame, moveToActive, openVoting, setGameTimer, clearGameTimer } from '@/lib/gameState';
 import { emitGameStatusUpdate } from '@/lib/socket';
 
 export async function POST(request: NextRequest) {
@@ -50,6 +50,34 @@ export async function POST(request: NextRequest) {
       startTime: updatedGame.startTime,
       timeRemaining: updatedGame.duration,
     });
+
+    // Clear any existing timer for this game
+    clearGameTimer(gameCode);
+
+    // Set up automatic timer to open voting when duration expires
+    const durationMs = updatedGame.duration * 1000;
+    console.log(`[Game ${gameCode}] Setting timer for ${updatedGame.duration}s (${durationMs}ms)`);
+
+    const timer = setTimeout(() => {
+      console.log(`[Game ${gameCode}] Timer expired! Opening voting automatically`);
+      const success = openVoting(gameCode);
+
+      if (success) {
+        console.log(`[Game ${gameCode}] Voting opened automatically`);
+        const game = getGame(gameCode);
+        if (game) {
+          emitGameStatusUpdate(gameCode, {
+            status: 'voting',
+            startTime: game.startTime,
+            timeRemaining: 0,
+          });
+        }
+      } else {
+        console.error(`[Game ${gameCode}] Failed to open voting automatically`);
+      }
+    }, durationMs);
+
+    setGameTimer(gameCode, timer);
 
     return NextResponse.json({ success: true });
   } catch (error) {
