@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,85 @@ export default function Home() {
   const [gameCode, setGameCode] = useState('');
   const [isVoter, setIsVoter] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [bgFlash, setBgFlash] = useState(false);
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const hasPlayedRef = useRef(false);
+
+  // Play audio immediately on page load
+  useEffect(() => {
+    // Create audio element
+    audioRef.current = new Audio('/rolling.mp3');
+    audioRef.current.volume = 0.7; // Set volume to 70%
+
+    if (!hasPlayedRef.current && audioRef.current) {
+      hasPlayedRef.current = true;
+
+      // Try to play audio immediately
+      const playPromise = audioRef.current.play();
+
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('Audio playing successfully!');
+            setAudioBlocked(false);
+          })
+          .catch(err => {
+            console.log('Autoplay blocked by browser:', err.message);
+            console.log('Audio will play on first user interaction');
+            setAudioBlocked(true);
+            // Hide message after 5 seconds
+            setTimeout(() => setAudioBlocked(false), 5000);
+          });
+      }
+
+      // Start flashing 1 second after page loads
+      setTimeout(() => {
+        triggerFlashes();
+      }, 1000);
+    }
+
+    // Fallback: play audio on any user interaction
+    const handleUserInteraction = () => {
+      if (audioRef.current && audioRef.current.paused && hasPlayedRef.current) {
+        audioRef.current.play()
+          .then(() => {
+            console.log('Audio playing after user interaction!');
+            setAudioBlocked(false);
+          })
+          .catch(err => console.log('Audio play on interaction failed:', err));
+      }
+    };
+
+    document.addEventListener('click', handleUserInteraction, { once: true });
+    document.addEventListener('keydown', handleUserInteraction, { once: true });
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Random flash effect
+  const triggerFlashes = () => {
+    const flashCount = Math.floor(Math.random() * 3) + 3; // 3-5 flashes
+    let currentFlash = 0;
+
+    const flashInterval = setInterval(() => {
+      if (currentFlash >= flashCount) {
+        clearInterval(flashInterval);
+        setBgFlash(false);
+        return;
+      }
+
+      setBgFlash(prev => !prev);
+      currentFlash++;
+    }, Math.random() * 150 + 100); // Random interval between 100-250ms
+  };
 
   const handleJoinGame = async () => {
     if (!gameCode.trim()) return;
@@ -53,7 +132,11 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-neo-bg">
+    <div
+      className={`min-h-screen flex flex-col items-center justify-center p-8 transition-colors duration-75 ${
+        bgFlash ? 'bg-black' : 'bg-neo-bg'
+      }`}
+    >
       <main className="flex flex-col items-center gap-12 max-w-2xl w-full">
         {/* Header */}
         <div className="text-center">
@@ -72,6 +155,11 @@ export default function Home() {
           <p className="text-2xl font-bold mt-8">
             Prompt blindly. Watch others suffer. Vote ruthlessly.
           </p>
+          {audioBlocked && (
+            <p className="text-sm text-gray-600 mt-4 animate-pulse">
+              🔊 Click anywhere to enable sound
+            </p>
+          )}
         </div>
 
         {/* Input section */}
