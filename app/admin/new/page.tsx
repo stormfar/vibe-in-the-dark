@@ -22,10 +22,10 @@ export default function AdminNewGame() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [imagePreviewError, setImagePreviewError] = useState('');
 
-  // Set random default target text on mount
+  // Set random default target text on mount and when render mode changes
   useEffect(() => {
-    setTargetText(getRandomTarget());
-  }, []);
+    setTargetText(getRandomTarget(renderMode));
+  }, [renderMode]);
 
   const handleImageUrlBlur = () => {
     if (!targetImageUrl.trim()) {

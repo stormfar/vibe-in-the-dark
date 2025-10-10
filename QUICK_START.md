@@ -69,7 +69,7 @@ Then upload using Option 2.
 4. **Start the game** (admin tab):
    - Click "UNLEASH THE CHAOS"
    - Participants see the target for 30 seconds
-   - Then they can start prompting Claude
+   - Then they can Start proompting Claude
 
 5. **Try AI prompts** (as participant):
    - "Create a large pink button in the centre"

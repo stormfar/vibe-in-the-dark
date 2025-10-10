@@ -23,7 +23,8 @@
       "Bash(node:*)",
       "Bash(sw_vers)",
       "Bash(CLOUDFLARE_API_TOKEN=3iCD0cCT0HxyvT0YlfQ1iThsiSEtcgGW-anzZoOm npx wrangler tail vibe-in-the-dark --format pretty)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(npm search:*)"
     ],
     "deny": [],
     "ask": []

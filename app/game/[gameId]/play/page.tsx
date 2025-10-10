@@ -110,6 +110,27 @@ export default function GamePlay() {
           // Check if status changed (especially important for game ending)
           if (prev && prev.status !== gameState.status) {
             console.log('[Play Polling] Status changed:', prev.status, '->', gameState.status);
+
+            // If game finished and winner declared, show final standings modal
+            if (gameState.status === 'finished' && gameState.winnerId) {
+              console.log('[Play Polling] Winner detected, showing final standings');
+              setShowFinalStandings(true);
+
+              // Trigger confetti celebration
+              confetti({
+                particleCount: 150,
+                spread: 100,
+                origin: { y: 0.6 },
+              });
+              setTimeout(() => {
+                confetti({
+                  particleCount: 100,
+                  angle: 60,
+                  spread: 80,
+                  origin: { x: 0 },
+                });
+              }, 200);
+            }
           }
           return gameState;
         });

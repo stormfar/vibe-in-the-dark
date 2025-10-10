@@ -109,6 +109,19 @@ export default function VoterView() {
         setGame(prev => {
           if (prev && prev.status !== gameState.status) {
             console.log('[Vote Polling] Status changed:', prev.status, '->', gameState.status);
+
+            // If game finished and winner declared, show final standings modal
+            if (gameState.status === 'finished' && gameState.winnerId) {
+              console.log('[Vote Polling] Winner detected, showing final standings');
+              setShowFinalStandings(true);
+
+              // Trigger confetti
+              confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+              });
+            }
           }
           return gameState;
         });

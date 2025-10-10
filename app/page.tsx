@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { TypewriterEffect } from '@/components/aceternity/typewriter-effect';
 
 export default function Home() {
   const router = useRouter();
@@ -56,13 +57,20 @@ export default function Home() {
       <main className="flex flex-col items-center gap-12 max-w-2xl w-full">
         {/* Header */}
         <div className="text-center">
-          <h1 className="font-[family-name:var(--font-display)] text-6xl md:text-8xl mb-6 rotate-[-1deg]">
-            <span className="inline-block neo-border bg-neo-pink text-white px-8 py-4 neo-shadow-lg">
-              VIBE IN THE DARK
-            </span>
-          </h1>
+          <div className="inline-block neo-border bg-black text-white px-8 py-4 neo-shadow-lg rotate-[-1deg] mb-6">
+            <TypewriterEffect
+              words={[
+                { text: "VIBE", className: "text-6xl md:text-8xl" },
+                { text: "IN", className: "text-6xl md:text-8xl" },
+                { text: "THE", className: "text-6xl md:text-8xl" },
+                { text: "DARK", className: "text-6xl md:text-8xl" },
+              ]}
+              className="font-[family-name:var(--font-display)]"
+              cursorClassName="bg-white"
+            />
+          </div>
           <p className="text-2xl font-bold mt-8">
-            Code with AI. See nothing. Vibe everything.
+            Prompt blindly. Watch others suffer. Vote ruthlessly.
           </p>
         </div>
 

@@ -1,7 +1,45 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Component as ReactComponent } from 'react';
 import * as Babel from '@babel/standalone';
+
+// Error boundary to catch runtime errors in generated components
+class ErrorBoundary extends ReactComponent<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Component runtime error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center h-full p-8 bg-red-50">
+          <div className="max-w-md">
+            <h2 className="text-xl font-bold text-red-600 mb-2">Runtime Error</h2>
+            <p className="text-sm text-red-800 mb-2">The generated component encountered an error:</p>
+            <p className="text-sm text-red-800 font-mono whitespace-pre-wrap bg-red-100 p-3 rounded">
+              {this.state.error?.message || 'Unknown error'}
+            </p>
+            <p className="text-xs text-gray-600 mt-4">Try submitting a different prompt or simplify your request.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 // Import vanilla shadcn components for turbo mode (not neo-brutalist)
 import { Button } from '@/components/turbo-ui/button';
@@ -21,6 +59,54 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Calendar } from '@/components/ui/calendar';
 import { Checkbox } from '@/components/ui/checkbox';
+
+// Fix common JSX issues that AI might generate
+function fixCommonJsxIssues(jsx: string): string {
+  let fixed = jsx;
+
+  // Fix 1: Add missing value prop to SelectItem components
+  // Match <SelectItem> tags without a value prop and add one based on the content
+  fixed = fixed.replace(
+    /<SelectItem(\s+[^>]*?)?\s*>([^<]+)<\/SelectItem>/g,
+    (match, attrs, content) => {
+      // Check if value prop already exists
+      if (attrs && /value\s*=/.test(attrs)) {
+        return match; // Already has value prop
+      }
+
+      // Generate a safe value from content (lowercase, no spaces)
+      const value = content.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+      return `<SelectItem${attrs || ''} value="${value}">${content}</SelectItem>`;
+    }
+  );
+
+  // Fix 2: Ensure all Select components have a default value or onValueChange
+  // This prevents controlled component warnings
+  fixed = fixed.replace(
+    /<Select(\s+[^>]*?)?\s*>/g,
+    (match, attrs) => {
+      // Check if defaultValue or value already exists
+      if (attrs && (/defaultValue\s*=/.test(attrs) || /value\s*=/.test(attrs))) {
+        return match;
+      }
+
+      // Add defaultValue=""
+      return `<Select${attrs || ''} defaultValue="">`;
+    }
+  );
+
+  // Fix 3: Fix self-closing tags that should be properly closed
+  // Some components need proper closing tags
+  fixed = fixed.replace(/<(SelectTrigger|SelectContent|DialogContent|CardHeader|CardContent)([^>]*?)\/>/g, '<$1$2></$1>');
+
+  console.log('[JSX Fix] Applied fixes:', {
+    selectItemsFixed: (jsx.match(/<SelectItem/g) || []).length,
+    selectsFixed: (jsx.match(/<Select[>\s]/g) || []).length
+  });
+
+  return fixed;
+}
 
 interface TurboRendererProps {
   jsx: string;
@@ -49,6 +135,9 @@ export default function TurboRenderer({ jsx }: TurboRendererProps) {
         .trim();
 
       console.log('Cleaned JSX:', cleanedJsx);
+
+      // Fix common JSX issues before processing
+      cleanedJsx = fixCommonJsxIssues(cleanedJsx);
 
       // Extract the component function
       const componentMatch = cleanedJsx.match(/function\s+Component\s*\([^)]*\)\s*{[\s\S]*}/);
@@ -204,8 +293,10 @@ export default function TurboRenderer({ jsx }: TurboRendererProps) {
   }
 
   return (
-    <TooltipProvider>
-      <Component />
-    </TooltipProvider>
+    <ErrorBoundary key={jsx}>
+      <TooltipProvider>
+        <Component />
+      </TooltipProvider>
+    </ErrorBoundary>
   );
 }

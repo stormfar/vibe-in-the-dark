@@ -116,7 +116,7 @@ export default function GameLobby() {
           name: data.participant.name,
           socketId: '',
           currentCode: {
-            html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start prompting!</h1></div>',
+            html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start proompting!</h1></div>',
             css: '',
           },
           promptHistory: [],

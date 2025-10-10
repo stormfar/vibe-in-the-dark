@@ -97,11 +97,11 @@ export function addParticipant(
   // Initialize code based on render mode
   const currentCode = game.renderMode === 'retro'
     ? {
-        html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start prompting!</h1></div>',
+        html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start proompting!</h1></div>',
         css: '',
       }
     : {
-        jsx: `export default function Component() {\n  return (\n    <div className="flex items-center justify-center h-full">\n      <h1 className="text-4xl font-bold">Start prompting!</h1>\n    </div>\n  );\n}`,
+        jsx: `export default function Component() {\n  return (\n    <div className="flex items-center justify-center h-full">\n      <h1 className="text-4xl font-bold">Start proompting!</h1>\n    </div>\n  );\n}`,
       };
 
   const participant: Participant = {

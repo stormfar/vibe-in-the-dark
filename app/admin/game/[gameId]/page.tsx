@@ -192,7 +192,7 @@ export default function AdminGameView() {
             name: data.participant.name,
             socketId: '',
             currentCode: {
-              html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start prompting!</h1></div>',
+              html: '<div style="display: flex; align-items: center; justify-content: center; height: 100vh;"><h1>Start proompting!</h1></div>',
               css: '',
             },
             promptHistory: [],
@@ -429,23 +429,6 @@ export default function AdminGameView() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Development helper: Add fake participants
-  const addFakeParticipants = useCallback(async (count: number) => {
-    const names = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack', 'Kate'];
-    for (let i = 0; i < count; i++) {
-      const name = names[Math.floor(Math.random() * names.length)] + Math.floor(Math.random() * 1000);
-      try {
-        await fetch('/api/game/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ gameCode, participantName: name }),
-        });
-      } catch (error) {
-        console.error('Failed to add fake participant:', error);
-      }
-    }
-  }, [gameCode]);
-
   if (!game) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neo-bg">
@@ -521,24 +504,6 @@ export default function AdminGameView() {
             >
               UNLEASH THE CHAOS
             </Button>
-
-            {/* Development Helpers */}
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="default"
-                onClick={() => addFakeParticipants(8)}
-                className="text-xs py-2 px-3"
-              >
-                + 8 Fake Participants
-              </Button>
-              <Button
-                variant="default"
-                onClick={() => addFakeParticipants(3)}
-                className="text-xs py-2 px-3"
-              >
-                + 3 More
-              </Button>
-            </div>
           </div>
         </Card>
       </div>
@@ -577,16 +542,24 @@ export default function AdminGameView() {
               <Badge variant="pink" className="text-base px-3 py-1.5">
                 👥 {game.participants.length} participant{game.participants.length !== 1 ? 's' : ''}
               </Badge>
-              {game.status === 'voting' && (
-                <Badge variant="yellow" className="text-base px-3 py-1.5">
-                  🗳️ {new Set(game.votes.map(v => v.voterFingerprint)).size} vote{new Set(game.votes.map(v => v.voterFingerprint)).size !== 1 ? 's' : ''} cast
-                </Badge>
-              )}
-              {game.status === 'finished' && (
-                <Badge variant="blue" className="text-base px-3 py-1.5">
-                  🗳️ {new Set(game.votes.map(v => v.voterFingerprint)).size} total vote{new Set(game.votes.map(v => v.voterFingerprint)).size !== 1 ? 's' : ''}
-                </Badge>
-              )}
+              {game.status === 'voting' && (() => {
+                const uniqueVoters = new Set(game.votes.map(v => v.voterFingerprint)).size;
+
+                return (
+                  <Badge variant="yellow" className="text-base px-3 py-1.5 animate-pulse">
+                    🗳️ {uniqueVoters} voter{uniqueVoters !== 1 ? 's' : ''}
+                  </Badge>
+                );
+              })()}
+              {game.status === 'finished' && (() => {
+                const uniqueVoters = new Set(game.votes.map(v => v.voterFingerprint)).size;
+
+                return (
+                  <Badge variant="blue" className="text-base px-3 py-1.5">
+                    🗳️ {uniqueVoters} total voter{uniqueVoters !== 1 ? 's' : ''}
+                  </Badge>
+                );
+              })()}
               <p className="font-bold text-gray-600">Voting Link:</p>
               <Badge variant="blue" className="text-base px-4 py-2">
                 {process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'} + code: {game.code}
