@@ -28,6 +28,7 @@ export function createGame(
   duration: number,
   targetImageUrl?: string,
   targetText?: string,
+  targetDescription?: string,
   customCode?: string,
   maxPrompts?: number,
   maxCharacters?: number
@@ -49,6 +50,7 @@ export function createGame(
     targetType,
     targetImageUrl,
     targetText,
+    targetDescription: targetDescription || 'recreate this',
     duration,
     maxPrompts: maxPrompts ?? 3, // Default to 3
     maxCharacters: maxCharacters ?? 1000, // Default to 1000

@@ -46,6 +46,7 @@ export interface Game {
   targetType: 'image' | 'text'; // Type of target
   targetImageUrl?: string; // URL if targetType is 'image'
   targetText?: string; // Description if targetType is 'text'
+  targetDescription?: string; // Optional instruction text (e.g., "recreate this", "build something like this")
   duration: number;
   maxPrompts: number; // Maximum number of prompts per participant
   maxCharacters: number; // Maximum characters per prompt
@@ -64,6 +65,7 @@ export interface CreateGameRequest {
   targetType: 'image' | 'text';
   targetImageUrl?: string; // Required if targetType is 'image'
   targetText?: string; // Required if targetType is 'text'
+  targetDescription?: string; // Optional instruction text (defaults to "recreate this")
   duration: number;
   maxPrompts?: number; // Optional max prompts per participant (default: 3)
   maxCharacters?: number; // Optional max characters per prompt (default: 1000)

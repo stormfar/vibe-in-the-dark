@@ -22,6 +22,7 @@ export default function GameLobby() {
   const [hasJoined, setHasJoined] = useState(false);
   const [participantId, setParticipantId] = useState('');
   const [game, setGame] = useState<Game | null>(null);
+  const [hasSetInitialName, setHasSetInitialName] = useState(false);
 
   useEffect(() => {
     // Check if already joined (from localStorage)
@@ -47,14 +48,15 @@ export default function GameLobby() {
     }
   }, [hasJoined, gameCode]);
 
-  // Set random default name when game loads
+  // Set random default name only once when game loads
   useEffect(() => {
-    if (game && !name && !hasJoined) {
+    if (game && !hasSetInitialName && !hasJoined) {
       const existingNames = game.participants.map(p => p.name);
       const randomName = getRandomName(existingNames);
       setName(randomName);
+      setHasSetInitialName(true);
     }
-  }, [game, name, hasJoined]);
+  }, [game, hasSetInitialName, hasJoined]);
 
   useEffect(() => {
     if (!hasJoined || !participantId) return;

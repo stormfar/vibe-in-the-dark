@@ -5,7 +5,7 @@ import type { CreateGameRequest, CreateGameResponse } from '@/lib/types';
 export async function POST(request: NextRequest) {
   try {
     const body: CreateGameRequest = await request.json();
-    const { renderMode, targetType, targetImageUrl, targetText, duration, customCode, maxPrompts, maxCharacters } = body;
+    const { renderMode, targetType, targetImageUrl, targetText, targetDescription, duration, customCode, maxPrompts, maxCharacters } = body;
 
     // Validate inputs
     if (!renderMode || !targetType || !duration) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the game
-    const game = createGame(renderMode, targetType, duration, targetImageUrl, targetText, customCode, maxPrompts, maxCharacters);
+    const game = createGame(renderMode, targetType, duration, targetImageUrl, targetText, targetDescription, customCode, maxPrompts, maxCharacters);
 
     console.log('Game created successfully:', {
       gameCode: game.code,

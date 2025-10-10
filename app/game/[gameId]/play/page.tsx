@@ -534,15 +534,24 @@ export default function GamePlay() {
             {/* Target - 1/3 width */}
             <div className="flex-[1] flex flex-col">
               <p className="font-bold text-sm mb-2 text-gray-600">TARGET DESIGN</p>
-              <div className="flex-1 neo-border bg-white overflow-hidden">
+              <div className="flex-1 neo-border bg-white overflow-hidden flex flex-col">
                 {game?.targetType === 'image' ? (
-                  <div className="w-full h-full p-4 flex items-center justify-center">
-                    <img
-                      src={game?.targetImageUrl}
-                      alt="Target"
-                      className="max-w-full max-h-full object-contain"
-                    />
-                  </div>
+                  <>
+                    {game?.targetDescription && (
+                      <div className="bg-neo-yellow border-b-4 border-black px-4 py-2 flex-shrink-0">
+                        <p className="font-bold text-center text-sm uppercase">
+                          {game.targetDescription}
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex-1 p-4 flex items-center justify-center overflow-hidden">
+                      <img
+                        src={game?.targetImageUrl}
+                        alt="Target"
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                  </>
                 ) : (
                   <div className="w-full h-full p-6 flex items-center justify-center">
                     <p className="text-lg font-bold text-center">

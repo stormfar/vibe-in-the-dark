@@ -14,6 +14,7 @@ export default function AdminNewGame() {
   const [targetType, setTargetType] = useState<'image' | 'text'>('image');
   const [targetImageUrl, setTargetImageUrl] = useState('');
   const [targetText, setTargetText] = useState('');
+  const [targetDescription, setTargetDescription] = useState('recreate this');
   const [customCode, setCustomCode] = useState('');
   const [duration, setDuration] = useState(300); // 5 minutes default
   const [maxPrompts, setMaxPrompts] = useState(3); // 3 prompts default
@@ -73,6 +74,7 @@ export default function AdminNewGame() {
         targetType: 'image' | 'text';
         targetImageUrl?: string;
         targetText?: string;
+        targetDescription?: string;
         duration: number;
         maxPrompts: number;
         maxCharacters: number;
@@ -88,6 +90,7 @@ export default function AdminNewGame() {
       // Add target based on type
       if (targetType === 'image') {
         requestBody.targetImageUrl = targetImageUrl;
+        requestBody.targetDescription = targetDescription.trim() || 'recreate this';
       } else {
         requestBody.targetText = targetText.trim();
       }
@@ -202,6 +205,25 @@ export default function AdminNewGame() {
                 <p className="text-xs text-gray-500 mt-1">
                   💡 Tip: Screenshot a UI, upload to Imgur, and paste the link here
                 </p>
+
+                {/* Description/Instruction */}
+                <div className="mt-4">
+                  <label className="block font-bold mb-2">
+                    Instruction Text (optional)
+                  </label>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Tell participants what to do with the target image
+                  </p>
+                  <Input
+                    placeholder="recreate this"
+                    value={targetDescription}
+                    onChange={(e) => setTargetDescription(e.target.value)}
+                    maxLength={100}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This text will appear above the target image (e.g., &quot;recreate this&quot;, &quot;build something similar to this&quot;)
+                  </p>
+                </div>
 
                 {/* Image Preview */}
                 {imagePreviewUrl && (
