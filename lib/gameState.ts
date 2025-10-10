@@ -11,11 +11,11 @@ declare global {
 const games = global.games || (global.games = new Map<string, Game>());
 const gameTimers = global.gameTimers || (global.gameTimers = new Map<string, NodeJS.Timeout>());
 
-// Generate unique 6-character game code
+// Generate unique 4-character game code
 function generateGameCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing characters
   let code = '';
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 4; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return code;

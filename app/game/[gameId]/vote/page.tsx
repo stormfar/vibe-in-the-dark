@@ -43,6 +43,21 @@ export default function VoterView() {
   const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
   const [isDisconnected, setIsDisconnected] = useState(false);
   const [showFinalStandings, setShowFinalStandings] = useState(false);
+  const [myParticipantId, setMyParticipantId] = useState<string | null>(null);
+
+  // Check if this user is a participant (to prevent self-voting)
+  useEffect(() => {
+    const storedData = localStorage.getItem(`game_${gameCode}`);
+    if (storedData) {
+      try {
+        const { participantId } = JSON.parse(storedData);
+        setMyParticipantId(participantId);
+        console.log('[Vote] User is a participant:', participantId);
+      } catch (e) {
+        console.error('Failed to parse participant data:', e);
+      }
+    }
+  }, [gameCode]);
 
   // Fetch fingerprint
   useEffect(() => {
@@ -383,6 +398,7 @@ export default function VoterView() {
         {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {game.participants
+            .filter(p => p.id !== myParticipantId) // Hide own submission
             .sort((a, b) => isFinished ? b.voteCount - a.voteCount : 0)
             .map((participant, index) => {
               const isWinner = isFinished && participant.id === game.winnerId;

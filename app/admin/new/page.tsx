@@ -126,18 +126,20 @@ export default function AdminNewGame() {
               <Button
                 variant={renderMode === 'retro' ? 'pink' : 'default'}
                 onClick={() => setRenderMode('retro')}
-                className="flex-1 flex-col h-auto py-4"
+                className={`flex-1 flex-col h-auto py-4 ${renderMode === 'retro' ? 'ring-4 ring-neo-pink ring-offset-2' : ''}`}
               >
                 <span className="text-xl font-black">🕹️ RETRO MODE</span>
                 <span className="text-xs font-normal mt-1">HTML/CSS - Like it&apos;s 1999</span>
+                {renderMode === 'retro' && <span className="text-xs mt-1">✓ Selected</span>}
               </Button>
               <Button
                 variant={renderMode === 'turbo' ? 'blue' : 'default'}
                 onClick={() => setRenderMode('turbo')}
-                className="flex-1 flex-col h-auto py-4"
+                className={`flex-1 flex-col h-auto py-4 ${renderMode === 'turbo' ? 'ring-4 ring-neo-blue ring-offset-2' : ''}`}
               >
                 <span className="text-xl font-black">🚀 TURBO MODE</span>
                 <span className="text-xs font-normal mt-1">Components - Full React chaos</span>
+                {renderMode === 'turbo' && <span className="text-xs mt-1">✓ Selected</span>}
               </Button>
             </div>
           </div>
@@ -151,16 +153,16 @@ export default function AdminNewGame() {
               <Button
                 variant={targetType === 'image' ? 'pink' : 'default'}
                 onClick={() => setTargetType('image')}
-                className="flex-1"
+                className={`flex-1 ${targetType === 'image' ? 'ring-4 ring-neo-pink ring-offset-2' : ''}`}
               >
-                Image URL
+                📷 Image URL {targetType === 'image' && '✓'}
               </Button>
               <Button
                 variant={targetType === 'text' ? 'pink' : 'default'}
                 onClick={() => setTargetType('text')}
-                className="flex-1"
+                className={`flex-1 ${targetType === 'text' ? 'ring-4 ring-neo-pink ring-offset-2' : ''}`}
               >
-                Text Description
+                📝 Text Description {targetType === 'text' && '✓'}
               </Button>
             </div>
 
@@ -204,13 +206,13 @@ export default function AdminNewGame() {
               Custom Code (optional)
             </label>
             <p className="text-sm text-gray-600 mb-2">
-              Want a memorable game code? Enter 4-6 letters/numbers (e.g., CHAOS, VIBE23)
+              Want a memorable game code? Enter any letters/numbers (e.g., VIBE, CHAOS, PARTY2024)
             </p>
             <Input
-              placeholder="Leave blank for random code"
+              placeholder="Leave blank for random 4-char code"
               value={customCode}
               onChange={(e) => setCustomCode(e.target.value.toUpperCase())}
-              maxLength={6}
+              maxLength={20}
             />
           </div>
 

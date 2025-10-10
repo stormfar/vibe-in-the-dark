@@ -60,12 +60,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Emit participant joined event
-    emitParticipantJoined(game.code, {
+    console.log(`[Join API] Emitting participantJoined event for ${participant.name} (${participant.id}) in game ${game.code}`);
+    await emitParticipantJoined(game.code, {
       participant: {
         id: participant.id,
         name: participant.name,
       },
     });
+    console.log(`[Join API] Successfully emitted participantJoined event`);
 
     const response: JoinGameResponse = {
       gameCode: game.code,

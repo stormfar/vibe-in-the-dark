@@ -108,6 +108,21 @@ export default function AdminGameView() {
       }
     });
 
+    // Polling fallback: Fetch game state every 5 seconds as backup for Pusher events
+    const pollingInterval = setInterval(async () => {
+      const gameState = await fetchGameState(gameCode);
+      if (gameState) {
+        setGame(prev => {
+          // Only update if there are actual changes to avoid unnecessary re-renders
+          if (!prev || JSON.stringify(prev) !== JSON.stringify(gameState)) {
+            console.log('[Admin Polling] Game state updated');
+            return gameState;
+          }
+          return prev;
+        });
+      }
+    }, 5000);
+
     // Handle connection error
     const handleError = (error: Event) => {
       console.error('Socket connection error:', error);
@@ -159,6 +174,7 @@ export default function AdminGameView() {
     cleanupFunctions.push(
       onEvent(socket, 'game:participantJoined', (payload) => {
         const data = payload as { participant: { id: string; name: string } };
+        console.log('[Admin] Received game:participantJoined event:', data);
         toast.success(`${data.participant.name} joined the chaos!`);
 
         // Immediately update local state with new participant
@@ -298,6 +314,10 @@ export default function AdminGameView() {
 
       // Call all cleanup functions from event listeners
       cleanupFunctions.forEach(cleanup => cleanup());
+
+      // Clear polling interval
+      clearInterval(pollingInterval);
+      console.log('[Admin] Cleaned up polling interval');
     };
   }, [gameCode]);
 
