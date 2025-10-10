@@ -19,11 +19,32 @@ export default function AdminNewGame() {
   const [maxPrompts, setMaxPrompts] = useState(3); // 3 prompts default
   const [maxCharacters, setMaxCharacters] = useState(1000); // 1000 characters default
   const [isCreating, setIsCreating] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+  const [imagePreviewError, setImagePreviewError] = useState('');
 
   // Set random default target text on mount
   useEffect(() => {
     setTargetText(getRandomTarget());
   }, []);
+
+  const handleImageUrlBlur = () => {
+    if (!targetImageUrl.trim()) {
+      setImagePreviewUrl('');
+      setImagePreviewError('');
+      return;
+    }
+
+    // Validate URL format
+    if (!targetImageUrl.startsWith('http://') && !targetImageUrl.startsWith('https://')) {
+      setImagePreviewError('Please enter a valid URL starting with http:// or https://');
+      setImagePreviewUrl('');
+      return;
+    }
+
+    // Try to load the image
+    setImagePreviewError('');
+    setImagePreviewUrl(targetImageUrl);
+  };
 
   const handleCreateGame = async () => {
     // Validate based on target type
@@ -175,11 +196,37 @@ export default function AdminNewGame() {
                   placeholder="https://example.com/target-design.png"
                   value={targetImageUrl}
                   onChange={(e) => setTargetImageUrl(e.target.value)}
+                  onBlur={handleImageUrlBlur}
                   type="url"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   💡 Tip: Screenshot a UI, upload to Imgur, and paste the link here
                 </p>
+
+                {/* Image Preview */}
+                {imagePreviewUrl && (
+                  <div className="mt-4">
+                    <p className="text-sm font-bold mb-2">Preview:</p>
+                    <div className="neo-border bg-white p-4">
+                      <img
+                        src={imagePreviewUrl}
+                        alt="Target preview"
+                        className="max-w-full h-auto max-h-64 mx-auto"
+                        onError={() => {
+                          setImagePreviewError('Failed to load image. Please check the URL.');
+                          setImagePreviewUrl('');
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Message */}
+                {imagePreviewError && (
+                  <div className="mt-2 p-3 bg-red-100 border-2 border-red-500 text-red-700 text-sm">
+                    ⚠️ {imagePreviewError}
+                  </div>
+                )}
               </>
             ) : (
               <>

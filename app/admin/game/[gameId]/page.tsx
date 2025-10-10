@@ -574,7 +574,20 @@ export default function AdminGameView() {
             )}
 
             <div className="ml-4 text-sm flex items-center gap-2">
-              <p className="font-bold text-gray-600">Voting/Reaction Link:</p>
+              <Badge variant="pink" className="text-base px-3 py-1.5">
+                👥 {game.participants.length} participant{game.participants.length !== 1 ? 's' : ''}
+              </Badge>
+              {game.status === 'voting' && (
+                <Badge variant="yellow" className="text-base px-3 py-1.5">
+                  🗳️ {new Set(game.votes.map(v => v.voterFingerprint)).size} vote{new Set(game.votes.map(v => v.voterFingerprint)).size !== 1 ? 's' : ''} cast
+                </Badge>
+              )}
+              {game.status === 'finished' && (
+                <Badge variant="blue" className="text-base px-3 py-1.5">
+                  🗳️ {new Set(game.votes.map(v => v.voterFingerprint)).size} total vote{new Set(game.votes.map(v => v.voterFingerprint)).size !== 1 ? 's' : ''}
+                </Badge>
+              )}
+              <p className="font-bold text-gray-600">Voting Link:</p>
               <Badge variant="blue" className="text-base px-4 py-2">
                 {process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'} + code: {game.code}
               </Badge>

@@ -102,6 +102,19 @@ export default function VoterView() {
       }
     });
 
+    // Polling fallback: Fetch game state every 5 seconds to detect status changes
+    const pollingInterval = setInterval(async () => {
+      const gameState = await fetchGameState(gameCode);
+      if (gameState) {
+        setGame(prev => {
+          if (prev && prev.status !== gameState.status) {
+            console.log('[Vote Polling] Status changed:', prev.status, '->', gameState.status);
+          }
+          return gameState;
+        });
+      }
+    }, 5000);
+
     // Handle disconnect events
     const handleClose = () => {
       console.warn('Socket disconnected');
@@ -215,6 +228,9 @@ export default function VoterView() {
       cleanupReactionUpdate();
       cleanupPreviewUpdate();
       cleanupWinnerDeclared();
+      // Clear polling interval
+      clearInterval(pollingInterval);
+      console.log('[Vote] Cleaned up polling interval');
     };
   }, [gameCode]);
 
@@ -398,9 +414,9 @@ export default function VoterView() {
         {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {game.participants
-            .filter(p => p.id !== myParticipantId) // Hide own submission
             .sort((a, b) => isFinished ? b.voteCount - a.voteCount : 0)
             .map((participant, index) => {
+              const isMyEntry = participant.id === myParticipantId;
               const isWinner = isFinished && participant.id === game.winnerId;
               const hasVotedForThis = votedFor === participant.id;
               const myReactionForThis = myReactions[participant.id];
@@ -440,9 +456,15 @@ export default function VoterView() {
                             </p>
                             {/* Vote count on mobile - inline with name */}
                             {isVotingOpen && (
-                              <Badge variant="pink" className="text-base sm:text-lg px-2 sm:px-3 py-0.5 sm:py-1 sm:hidden">
-                                ❤️ {participant.voteCount}
-                              </Badge>
+                              <motion.div
+                                key={`votes-mobile-${participant.voteCount}`}
+                                animate={{ scale: [1, 1.2, 1] }}
+                                transition={{ duration: 0.3 }}
+                              >
+                                <Badge variant="pink" className="text-base sm:text-lg px-2 sm:px-3 py-0.5 sm:py-1 sm:hidden">
+                                  ❤️ 🙈
+                                </Badge>
+                              </motion.div>
                             )}
                           </div>
 
@@ -474,9 +496,15 @@ export default function VoterView() {
 
                         {/* Vote count on desktop */}
                         {isVotingOpen && (
-                          <Badge variant="pink" className="hidden sm:block text-lg px-3 py-1">
-                            ❤️ {participant.voteCount}
-                          </Badge>
+                          <motion.div
+                            key={`votes-desktop-${participant.voteCount}`}
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Badge variant="pink" className="hidden sm:block text-lg px-3 py-1">
+                              ❤️ 🙈
+                            </Badge>
+                          </motion.div>
                         )}
                       </div>
 
@@ -581,18 +609,26 @@ export default function VoterView() {
 
                       {/* Vote button during voting */}
                       {isVotingOpen && !isFinished && (
-                        <Button
-                          variant={hasVotedForThis ? 'blue' : 'pink'}
-                          className="w-full"
-                          onClick={() => handleVote(participant.id)}
-                          disabled={isLoadingFingerprint || (votedFor !== null && votedFor !== participant.id)}
-                        >
-                          {hasVotedForThis
-                            ? 'UNDO VOTE'
-                            : votedFor
-                            ? 'LOCKED IN'
-                            : 'THIS ONE SLAPS 🔥'}
-                        </Button>
+                        <>
+                          {isMyEntry ? (
+                            <div className="w-full text-center py-3 bg-gray-100 border-4 border-gray-300 rounded font-bold text-gray-600">
+                              Your entry (can&apos;t vote for yourself!)
+                            </div>
+                          ) : (
+                            <Button
+                              variant={hasVotedForThis ? 'blue' : 'pink'}
+                              className="w-full"
+                              onClick={() => handleVote(participant.id)}
+                              disabled={isLoadingFingerprint || (votedFor !== null && votedFor !== participant.id)}
+                            >
+                              {hasVotedForThis
+                                ? 'UNDO VOTE'
+                                : votedFor
+                                ? 'LOCKED IN'
+                                : 'THIS ONE SLAPS 🔥'}
+                            </Button>
+                          )}
+                        </>
                       )}
 
                       {/* Show message when voting has ended */}
@@ -710,7 +746,7 @@ export default function VoterView() {
 
                       <div className={`text-right ${isWinner ? 'text-3xl' : 'text-2xl'} font-black`}>
                         <div className="bg-pink-100 border-4 border-pink-500 rounded px-4 py-2">
-                          ❤️ {participant.voteCount}
+                          ❤️ {participant.voteCount} {/* Final standings show actual count */}
                         </div>
                       </div>
                     </motion.div>

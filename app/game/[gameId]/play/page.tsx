@@ -102,6 +102,20 @@ export default function GamePlay() {
       }
     });
 
+    // Polling fallback: Fetch game state every 5 seconds to detect status changes
+    const pollingInterval = setInterval(async () => {
+      const gameState = await fetchGameState(gameCode);
+      if (gameState) {
+        setGame(prev => {
+          // Check if status changed (especially important for game ending)
+          if (prev && prev.status !== gameState.status) {
+            console.log('[Play Polling] Status changed:', prev.status, '->', gameState.status);
+          }
+          return gameState;
+        });
+      }
+    }, 5000);
+
     // Handle connection close
     const handleClose = () => {
       console.warn('Socket disconnected');
@@ -282,6 +296,9 @@ export default function GamePlay() {
       cleanupReactionUpdate();
       cleanupVoteUpdate();
       cleanupWinnerDeclared();
+      // Clear polling interval
+      clearInterval(pollingInterval);
+      console.log('[Play] Cleaned up polling interval');
     };
   }, [participantId, gameCode]);
 
@@ -498,11 +515,13 @@ export default function GamePlay() {
               <p className="font-bold text-sm mb-2 text-gray-600">TARGET DESIGN</p>
               <div className="flex-1 neo-border bg-white overflow-hidden">
                 {game?.targetType === 'image' ? (
-                  <img
-                    src={game?.targetImageUrl}
-                    alt="Target"
-                    className="w-full h-full object-contain"
-                  />
+                  <div className="w-full h-full p-4 flex items-center justify-center">
+                    <img
+                      src={game?.targetImageUrl}
+                      alt="Target"
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
                 ) : (
                   <div className="w-full h-full p-6 flex items-center justify-center">
                     <p className="text-lg font-bold text-center">
