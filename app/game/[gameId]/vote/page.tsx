@@ -528,6 +528,35 @@ export default function VoterView() {
                         }`}
                         onClick={() => !isExpanded && setExpandedParticipant(participant.id)}
                       >
+                        {/* Sabotage badges - top left */}
+                        {participant.activeSabotages && participant.activeSabotages.length > 0 && (
+                          <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 max-w-[60%]">
+                            {(() => {
+                              // Get all saboteurs for this participant's sabotages
+                              const allSaboteurs = game.sabotages
+                                .filter(s => s.targetParticipantId === participant.id)
+                                .map(event => {
+                                  const saboteur = game.participants.find(p => p.id === event.sourceParticipantId);
+                                  return saboteur?.name || 'Unknown';
+                                })
+                                .filter((name, index, self) => self.indexOf(name) === index); // unique names
+
+                              const saboteursText = isFinished && allSaboteurs.length > 0
+                                ? `by ${allSaboteurs.join(', ')}`
+                                : 'SABOTAGED';
+
+                              return (
+                                <span
+                                  className="text-xs bg-red-500 text-white px-2 py-1 rounded font-bold shadow-lg"
+                                  title={`Sabotaged by: ${allSaboteurs.join(', ')}`}
+                                >
+                                  😈 {saboteursText}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        )}
+
                         {/* Action buttons - top right */}
                         <div className="absolute top-2 right-2 flex gap-1 z-10 pointer-events-auto">
                           {isExpanded && (

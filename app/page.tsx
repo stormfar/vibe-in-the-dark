@@ -14,31 +14,35 @@ export default function Home() {
   const [gameCode, setGameCode] = useState('');
   const [isVoter, setIsVoter] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [bgFlash, setBgFlash] = useState(false);
+  const [bgColor, setBgColor] = useState('black'); // Start with black
+  const [lightsOn, setLightsOn] = useState(false); // Track if lights are fully on
 
-  // Trigger flashes on page load
+  // Trigger flashes on page load - lights turning on effect
   useEffect(() => {
-    // Start flashing 1 second after page loads
+    // Start flashing 500ms after page loads (during typewriter)
     setTimeout(() => {
       triggerFlashes();
-    }, 1000);
+    }, 500);
   }, []);
 
-  // Random flash effect
+  // Flash effect - lights turning on
   const triggerFlashes = () => {
-    const flashCount = Math.floor(Math.random() * 3) + 3; // 3-5 flashes
+    const flashCount = Math.floor(Math.random() * 2) + 3; // 3-4 flashes
     let currentFlash = 0;
 
     const flashInterval = setInterval(() => {
       if (currentFlash >= flashCount) {
         clearInterval(flashInterval);
-        setBgFlash(false);
+        // Final state - lights fully on (off-white background)
+        setBgColor('#F8F6F3');
+        setLightsOn(true);
         return;
       }
 
-      setBgFlash(prev => !prev);
+      // Alternate between black and off-white
+      setBgColor(prev => prev === 'black' ? '#F8F6F3' : 'black');
       currentFlash++;
-    }, Math.random() * 150 + 100); // Random interval between 100-250ms
+    }, Math.random() * 100 + 150); // Random interval between 150-250ms
   };
 
   const handleJoinGame = async () => {
@@ -80,13 +84,12 @@ export default function Home() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col items-center justify-center p-8 transition-colors duration-75 ${
-        bgFlash ? 'bg-black' : 'bg-neo-bg'
-      }`}
+      className="min-h-screen flex flex-col items-center justify-center p-8 transition-colors duration-200"
+      style={{ backgroundColor: bgColor }}
     >
       <main className="flex flex-col items-center gap-12 max-w-2xl w-full">
         {/* Header */}
-        <div className="text-center">
+        <div className="text-center" style={{ color: lightsOn ? 'inherit' : 'white' }}>
           <div className="inline-block neo-border bg-black text-white px-8 py-4 neo-shadow-lg rotate-[-1deg] mb-6">
             <TypewriterEffect
               words={[

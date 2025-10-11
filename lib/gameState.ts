@@ -29,6 +29,7 @@ export function createGame(
   targetImageUrl?: string,
   targetText?: string,
   targetDescription?: string,
+  sabotageMode?: boolean,
   customCode?: string,
   maxPrompts?: number,
   maxCharacters?: number
@@ -54,12 +55,14 @@ export function createGame(
     duration,
     maxPrompts: maxPrompts ?? 3, // Default to 3
     maxCharacters: maxCharacters ?? 1000, // Default to 1000
+    sabotageMode: sabotageMode ?? false, // Default to false
     startTime: null,
     votingStartTime: null,
     createdAt: Date.now(),
     participants: [],
     votes: [],
     reactions: [],
+    sabotages: [],
     winnerId: null,
   };
 
@@ -115,6 +118,8 @@ export function addParticipant(
     reactions: { fire: 0, laugh: 0, think: 0, shock: 0, cool: 0 },
     voteCount: 0,
     joinedAt: Date.now(),
+    sabotageUsed: false,
+    activeSabotages: [],
   };
 
   game.participants.push(participant);

@@ -19,6 +19,7 @@ export default function AdminNewGame() {
   const [duration, setDuration] = useState(300); // 5 minutes default
   const [maxPrompts, setMaxPrompts] = useState(3); // 3 prompts default
   const [maxCharacters, setMaxCharacters] = useState(1000); // 1000 characters default
+  const [sabotageMode, setSabotageMode] = useState(false); // Sabotage mode disabled by default
   const [isCreating, setIsCreating] = useState(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [imagePreviewError, setImagePreviewError] = useState('');
@@ -78,6 +79,7 @@ export default function AdminNewGame() {
         duration: number;
         maxPrompts: number;
         maxCharacters: number;
+        sabotageMode: boolean;
         customCode?: string;
       } = {
         renderMode,
@@ -85,6 +87,7 @@ export default function AdminNewGame() {
         duration,
         maxPrompts,
         maxCharacters,
+        sabotageMode,
       };
 
       // Add target based on type
@@ -346,6 +349,27 @@ export default function AdminNewGame() {
             <p className="text-center font-bold mt-2 text-xl">
               {maxCharacters} characters
             </p>
+          </div>
+
+          {/* Sabotage Mode Toggle */}
+          <div className="neo-border bg-orange-50 p-4">
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                id="sabotageMode"
+                checked={sabotageMode}
+                onChange={(e) => setSabotageMode(e.target.checked)}
+                className="mt-1 w-6 h-6 cursor-pointer"
+              />
+              <div className="flex-1">
+                <label htmlFor="sabotageMode" className="font-bold text-lg cursor-pointer block">
+                  😈 Enable Sabotage Mode
+                </label>
+                <p className="text-sm text-gray-700 mt-1">
+                  Participants can sacrifice <strong>one prompt</strong> to sabotage another player with effects like Comic Sans, upside-down layout, or giant text. Pure chaos!
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Create Button */}

@@ -164,7 +164,7 @@ export default function AdminGameView() {
         console.error('Game error:', error);
         toast.error(error.message || 'Game not found');
         // Set a flag to show error state instead of loading
-        setGame({ code: '', status: 'finished', targetType: 'image', targetImageUrl: '', duration: 0, maxPrompts: 3, maxCharacters: 1000, renderMode: 'retro', startTime: null, votingStartTime: null, createdAt: 0, participants: [], votes: [], reactions: [], winnerId: null } as Game);
+        setGame({ code: '', status: 'finished', targetType: 'image', targetImageUrl: '', duration: 0, maxPrompts: 3, maxCharacters: 1000, renderMode: 'retro', startTime: null, votingStartTime: null, createdAt: 0, participants: [], votes: [], reactions: [], winnerId: null, sabotageMode: false, sabotages: [] } as Game);
       })
     );
 
@@ -196,6 +196,8 @@ export default function AdminGameView() {
             reactions: { fire: 0, laugh: 0, think: 0, shock: 0, cool: 0 },
             voteCount: 0,
             joinedAt: Date.now(),
+            sabotageUsed: false,
+            activeSabotages: [],
           };
 
           return {
@@ -702,6 +704,36 @@ export default function AdminGameView() {
                       style={{ height: isExpanded ? '70vh' : '200px' }}
                       onClick={() => !isExpanded && setExpandedParticipant(participant.id)}
                     >
+                      {/* Sabotage badges - top left */}
+                      {participant.activeSabotages && participant.activeSabotages.length > 0 && (
+                        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 max-w-[60%]">
+                          {(() => {
+                            // Get all saboteurs for this participant's sabotages
+                            const allSaboteurs = game.sabotages
+                              .filter(s => s.targetParticipantId === participant.id)
+                              .map(event => {
+                                const saboteur = game.participants.find(p => p.id === event.sourceParticipantId);
+                                return saboteur?.name || 'Unknown';
+                              })
+                              .filter((name, index, self) => self.indexOf(name) === index); // unique names
+
+                            const isFinished = game.status === 'finished';
+                            const saboteursText = isFinished && allSaboteurs.length > 0
+                              ? `by ${allSaboteurs.join(', ')}`
+                              : 'SABOTAGED';
+
+                            return (
+                              <span
+                                className="text-xs bg-red-500 text-white px-2 py-1 rounded font-bold shadow-lg"
+                                title={`Sabotaged by: ${allSaboteurs.join(', ')}`}
+                              >
+                                😈 {saboteursText}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      )}
+
                       {/* Action buttons - top right */}
                       <div className="absolute top-2 right-2 flex gap-1 z-10 pointer-events-auto">
                         {isExpanded && (

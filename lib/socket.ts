@@ -6,6 +6,7 @@ import type {
   VoteUpdateEvent,
   ReactionUpdateEvent,
   WinnerDeclaredEvent,
+  SabotageAppliedEvent,
 } from './types';
 
 // Initialize Supabase server client
@@ -73,4 +74,9 @@ export async function emitReactionUpdate(gameCode: string, event: ReactionUpdate
 // Emit winner declared
 export async function emitWinnerDeclared(gameCode: string, event: WinnerDeclaredEvent) {
   await broadcastToRoom(gameCode, 'game:winnerDeclared', event);
+}
+
+// Emit sabotage applied
+export async function emitSabotageApplied(gameCode: string, event: SabotageAppliedEvent) {
+  await broadcastToRoom(gameCode, 'sabotage:applied', event);
 }

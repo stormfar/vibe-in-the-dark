@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { getSocket, onEvent } from '@/lib/socketClient';
 import { fetchGameState } from '@/lib/gameApi';
 import { getFingerprint } from '@/lib/fingerprint';
@@ -23,6 +23,14 @@ const EMOJI_MAP: Record<ReactionType, string> = {
   shock: '😱',
   cool: '😎',
 };
+
+const EMOJI_REACTIONS = [
+  { type: 'fire' as const, emoji: '🔥', color: 'bg-orange-500' },
+  { type: 'laugh' as const, emoji: '😂', color: 'bg-yellow-500' },
+  { type: 'think' as const, emoji: '🤔', color: 'bg-blue-500' },
+  { type: 'shock' as const, emoji: '😱', color: 'bg-purple-500' },
+  { type: 'cool' as const, emoji: '😎', color: 'bg-cyan-500' },
+];
 
 export default function GamePlay() {
   const params = useParams();
@@ -43,6 +51,12 @@ export default function GamePlay() {
   const [fingerprint, setFingerprint] = useState<string>('');
   const [isDisconnected, setIsDisconnected] = useState(false);
   const [showFinalStandings, setShowFinalStandings] = useState(false);
+  const [showLiveStandings, setShowLiveStandings] = useState(false);
+  const [showSabotagePanel, setShowSabotagePanel] = useState(false);
+  const [selectedSabotage, setSelectedSabotage] = useState<import('@/lib/types').SabotageType | null>(null);
+  const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
+  const [isSabotaging, setIsSabotaging] = useState(false);
+  const [sabotageNotification, setSabotageNotification] = useState<{ type: import('@/lib/types').SabotageType; show: boolean } | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const handlersSetupRef = useRef<boolean>(false);
@@ -307,6 +321,37 @@ export default function GamePlay() {
       }, 400);
     });
 
+    const cleanupSabotageApplied = onEvent(socket, 'sabotage:applied', (payload) => {
+      const data = payload as import('@/lib/types').SabotageAppliedEvent;
+      console.log('[Play] Received sabotage:applied event:', data);
+
+      // Only update if it's for this participant
+      if (data.targetParticipantId === participantId) {
+        setGame(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            participants: prev.participants.map(p =>
+              p.id === participantId
+                ? { ...p, activeSabotages: data.activeSabotages }
+                : p
+            ),
+          };
+        });
+
+        // Only show notification if sabotages are being ADDED (not cancelled)
+        if (data.activeSabotages.length > 0) {
+          // Show prominent sabotage notification
+          setSabotageNotification({ type: data.sabotageType, show: true });
+
+          // Auto-dismiss after 4 seconds
+          setTimeout(() => {
+            setSabotageNotification(prev => prev ? { ...prev, show: false } : null);
+          }, 4000);
+        }
+      }
+    });
+
     return () => {
       // Reset the flag so handlers can be set up again if needed
       handlersSetupRef.current = false;
@@ -317,6 +362,7 @@ export default function GamePlay() {
       cleanupReactionUpdate();
       cleanupVoteUpdate();
       cleanupWinnerDeclared();
+      cleanupSabotageApplied();
       // Clear polling interval
       clearInterval(pollingInterval);
       console.log('[Play] Cleaned up polling interval');
@@ -465,16 +511,135 @@ export default function GamePlay() {
   const isGameActive = game?.status === 'active';
   const isGameOver = game?.status === 'voting' || game?.status === 'finished';
 
+  const handleSabotage = async () => {
+    if (!selectedSabotage || !selectedTarget || !game) return;
+
+    setIsSabotaging(true);
+
+    try {
+      const response = await fetch('/api/sabotage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameCode,
+          sourceParticipantId: participantId,
+          targetParticipantId: selectedTarget,
+          sabotageType: selectedSabotage,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to apply sabotage');
+        setIsSabotaging(false);
+        return;
+      }
+
+      const data = await response.json();
+      toast.success(data.message || 'Sabotage applied! 😈');
+
+      // Update local state
+      setGame(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          participants: prev.participants.map(p =>
+            p.id === participantId
+              ? { ...p, sabotageUsed: true }
+              : p
+          ),
+        };
+      });
+
+      setShowSabotagePanel(false);
+      setSelectedSabotage(null);
+      setSelectedTarget(null);
+    } catch {
+      toast.error('Failed to apply sabotage');
+    } finally {
+      setIsSabotaging(false);
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const sabotageOptions = [
+    { type: 'comic-sans' as const, name: 'Papyrus Everything', emoji: '🤡', description: 'Changes all fonts to Papyrus' },
+    { type: 'rotate-180' as const, name: 'Upside Down', emoji: '🙃', description: 'Flips the entire layout 180°' },
+    { type: 'lights-off' as const, name: 'REALLY Vibe In The Dark', emoji: '🌑', description: 'Blacks out their screen completely!' },
+    { type: 'inverted-colors' as const, name: 'Inverted Colors', emoji: '🌈', description: 'Inverts all colors' },
+    { type: 'giant-text' as const, name: 'Giant Text', emoji: '📏', description: 'Multiplies font sizes by 3x' },
+    { type: 'glitter-bomb' as const, name: 'Glitter Bomb', emoji: '✨', description: 'Unicornifies everything with sparkles' },
+  ];
+
+  const currentParticipant = game?.participants.find(p => p.id === participantId);
+
   return (
     <>
       {isDisconnected && <BlueScreenOfDeath variant="player" />}
       <div className={`h-screen flex flex-col bg-neo-bg relative overflow-hidden ${timeRemaining <= 15 && isGameActive ? 'animate-shake' : ''}`}>
+      {/* Lights-Off Sabotage Overlay - Darkens content area only */}
+      {currentParticipant?.activeSabotages?.includes('lights-off') && (
+        <div className="absolute inset-0 bg-black z-10 pointer-events-none" />
+      )}
+
+      {/* Sabotage Notification Overlay */}
+      <AnimatePresence>
+        {sabotageNotification?.show && (() => {
+          const sabotageOption = sabotageOptions.find(opt => opt.type === sabotageNotification.type);
+          return (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+              onClick={() => setSabotageNotification(prev => prev ? { ...prev, show: false } : null)}
+            >
+              <motion.div
+                initial={{ y: -50 }}
+                animate={{ y: 0 }}
+                transition={{ duration: 0.5, type: 'spring', bounce: 0.4 }}
+                className="neo-border bg-red-500 p-12 text-center max-w-2xl mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <motion.div
+                  animate={{ rotate: [0, -10, 10, -10, 10, 0] }}
+                  transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+                  className="text-9xl mb-6"
+                >
+                  😈
+                </motion.div>
+                <h2 className="text-6xl font-black text-white mb-4 uppercase tracking-tight">
+                  You've Been<br />Sabotaged!
+                </h2>
+                <div className="neo-border bg-white p-6 mb-6">
+                  <p className="text-3xl font-bold text-red-600 mb-2">
+                    {sabotageOption?.emoji} {sabotageOption?.name}
+                  </p>
+                  <p className="text-xl text-gray-700">
+                    {sabotageOption?.description}
+                  </p>
+                </div>
+                <p className="text-white text-lg font-bold">
+                  Your app isn't broken - someone sabotaged you!
+                </p>
+                <Button
+                  onClick={() => setSabotageNotification(prev => prev ? { ...prev, show: false } : null)}
+                  className="mt-6 bg-white text-black hover:bg-gray-100 text-lg px-8 py-6 h-auto font-black"
+                >
+                  Got it! 😠
+                </Button>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
       {/* Floating emoji explosions - random positions across screen */}
       <div className="fixed inset-0 pointer-events-none z-50">
         <AnimatePresence>
@@ -564,18 +729,290 @@ export default function GamePlay() {
 
             {/* Preview - 2/3 width */}
             <div className="flex-[2] flex flex-col">
-              <p className="font-bold text-sm mb-2">Your Beautiful Disaster</p>
-              <div className="flex-1 neo-border bg-white overflow-hidden">
-                {game && (
-                  <PreviewRenderer
-                    renderMode={game.renderMode}
-                    html={currentHtml}
-                    css={currentCss}
-                    jsx={game.participants.find(p => p.id === participantId)?.currentCode.jsx}
-                    className="w-full h-full border-0"
-                  />
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-bold text-sm">Your Beautiful Disaster</p>
+                {currentParticipant?.activeSabotages && currentParticipant.activeSabotages.length > 0 && (
+                  <div className="flex gap-2 items-center">
+                    <div className="flex gap-1">
+                      {currentParticipant.activeSabotages.map((sabotage, idx) => (
+                        <span key={idx} className="text-xs bg-red-500 text-white px-2 py-1 rounded font-bold">
+                          {sabotageOptions.find(s => s.type === sabotage)?.emoji} SABOTAGED
+                        </span>
+                      ))}
+                    </div>
+                    <Button
+                      variant="yellow"
+                      className="text-xs font-bold whitespace-nowrap px-3 py-2 h-auto"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/sabotage/cancel', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ gameCode, participantId }),
+                          });
+                          if (response.ok) {
+                            toast.success('Sabotages cancelled!');
+
+                            // Update local promptHistory state
+                            setPromptHistory(prev => [...prev, '[SABOTAGE CANCELLED]']);
+
+                            // Update game state
+                            setGame(prev => {
+                              if (!prev) return prev;
+                              return {
+                                ...prev,
+                                participants: prev.participants.map(p =>
+                                  p.id === participantId
+                                    ? { ...p, activeSabotages: [], promptHistory: [...p.promptHistory, { prompt: '[SABOTAGE CANCELLED]', timestamp: Date.now() }] }
+                                    : p
+                                ),
+                              };
+                            });
+                          } else {
+                            const error = await response.json();
+                            toast.error(error.error);
+                          }
+                        } catch {
+                          toast.error('Failed to cancel sabotage');
+                        }
+                      }}
+                    >
+                      Cancel (costs 1 prompt)
+                    </Button>
+                  </div>
                 )}
               </div>
+              <div
+                className="flex-1 neo-border bg-white overflow-hidden relative"
+                style={{
+                  ...(currentParticipant?.activeSabotages?.includes('rotate-180') && {
+                    transform: 'rotate(180deg)',
+                  }),
+                }}
+              >
+                {game && (
+                  <div
+                    className="w-full h-full"
+                    style={{
+                      ...(currentParticipant?.activeSabotages?.includes('comic-sans') && {
+                        fontFamily: 'Papyrus, fantasy !important',
+                      }),
+                      ...(currentParticipant?.activeSabotages?.includes('inverted-colors') && {
+                        filter: 'invert(1)',
+                      }),
+                      ...(currentParticipant?.activeSabotages?.includes('giant-text') && {
+                        fontSize: '300%',
+                      }),
+                      ...(currentParticipant?.activeSabotages?.includes('rotate-180') && {
+                        transform: 'rotate(180deg)',
+                      }),
+                    }}
+                  >
+                    <PreviewRenderer
+                      renderMode={game.renderMode}
+                      html={currentHtml}
+                      css={currentCss}
+                      jsx={game.participants.find(p => p.id === participantId)?.currentCode.jsx}
+                      className="w-full h-full border-0"
+                    />
+                  </div>
+                )}
+                {/* ULTRA INTENSE Glitter bomb overlay */}
+                {currentParticipant?.activeSabotages?.includes('glitter-bomb') && (
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    {/* Rainbow animated gradient background */}
+                    <div className="rainbow-gradient-intense" />
+
+                    {/* Multiple layers of sparkles */}
+                    <div className="sparkle-layer-1">
+                      {[...Array(150)].map((_, i) => (
+                        <div
+                          key={`sparkle-1-${i}`}
+                          className="sparkle-particle"
+                          style={{
+                            left: `${Math.random() * 100}%`,
+                            top: `${Math.random() * 100}%`,
+                            animationDelay: `${Math.random() * 3}s`,
+                            width: `${Math.random() * 15 + 8}px`,
+                            height: `${Math.random() * 15 + 8}px`,
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Stars */}
+                    <div className="star-layer">
+                      {[...Array(80)].map((_, i) => (
+                        <div
+                          key={`star-${i}`}
+                          className="star-particle"
+                          style={{
+                            left: `${Math.random() * 100}%`,
+                            top: `${Math.random() * 100}%`,
+                            animationDelay: `${Math.random() * 2}s`,
+                            fontSize: `${Math.random() * 20 + 15}px`,
+                          }}
+                        >
+                          ✨
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Hearts */}
+                    <div className="heart-layer">
+                      {[...Array(40)].map((_, i) => (
+                        <div
+                          key={`heart-${i}`}
+                          className="heart-particle"
+                          style={{
+                            left: `${Math.random() * 100}%`,
+                            top: `${Math.random() * 100}%`,
+                            animationDelay: `${Math.random() * 2.5}s`,
+                            fontSize: `${Math.random() * 25 + 20}px`,
+                          }}
+                        >
+                          💖
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Unicorns */}
+                    <div className="unicorn-layer">
+                      {[...Array(20)].map((_, i) => (
+                        <div
+                          key={`unicorn-${i}`}
+                          className="unicorn-particle"
+                          style={{
+                            left: `${Math.random() * 100}%`,
+                            top: `${Math.random() * 100}%`,
+                            animationDelay: `${Math.random() * 4}s`,
+                            fontSize: `${Math.random() * 30 + 25}px`,
+                          }}
+                        >
+                          🦄
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Glitter text effect overlay */}
+                    <div className="glitter-text-overlay" />
+                  </div>
+                )}
+              </div>
+              <style jsx>{`
+                .rainbow-gradient-intense {
+                  position: absolute;
+                  inset: 0;
+                  background: linear-gradient(
+                    45deg,
+                    rgba(255, 0, 255, 0.25),
+                    rgba(255, 105, 180, 0.25),
+                    rgba(255, 215, 0, 0.25),
+                    rgba(0, 255, 255, 0.25),
+                    rgba(138, 43, 226, 0.25),
+                    rgba(255, 20, 147, 0.25)
+                  );
+                  background-size: 600% 600%;
+                  animation: rainbow-intense 4s ease infinite;
+                  filter: blur(5px);
+                }
+
+                .sparkle-particle {
+                  position: absolute;
+                  background: radial-gradient(circle, #fff 0%, #ffd700 30%, #ff1493 60%, transparent 100%);
+                  border-radius: 50%;
+                  animation: sparkle-intense 1.5s infinite, twirl 3s infinite ease-in-out;
+                  box-shadow:
+                    0 0 20px rgba(255, 215, 0, 0.9),
+                    0 0 40px rgba(255, 105, 180, 0.7),
+                    0 0 60px rgba(138, 43, 226, 0.5);
+                  filter: brightness(1.5);
+                }
+
+                .star-particle {
+                  position: absolute;
+                  animation: sparkle-intense 1.2s infinite, float-star 5s infinite ease-in-out;
+                  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.9));
+                }
+
+                .heart-particle {
+                  position: absolute;
+                  animation: pulse-heart 2s infinite, float-up 6s infinite ease-in-out;
+                  filter: drop-shadow(0 0 10px rgba(255, 105, 180, 0.9));
+                }
+
+                .unicorn-particle {
+                  position: absolute;
+                  animation: bounce-unicorn 3s infinite, drift 8s infinite ease-in-out;
+                  filter: drop-shadow(0 0 15px rgba(255, 0, 255, 0.9));
+                }
+
+                .glitter-text-overlay {
+                  position: absolute;
+                  inset: 0;
+                  background:
+                    repeating-linear-gradient(
+                      90deg,
+                      transparent 0px,
+                      rgba(255, 215, 0, 0.3) 2px,
+                      transparent 4px
+                    ),
+                    repeating-linear-gradient(
+                      0deg,
+                      transparent 0px,
+                      rgba(255, 105, 180, 0.3) 2px,
+                      transparent 4px
+                    );
+                  animation: glitter-scan 2s linear infinite;
+                  mix-blend-mode: screen;
+                }
+
+                @keyframes rainbow-intense {
+                  0%, 100% { background-position: 0% 50%; filter: hue-rotate(0deg); }
+                  50% { background-position: 100% 50%; filter: hue-rotate(360deg); }
+                }
+
+                @keyframes sparkle-intense {
+                  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+                  50% { opacity: 1; transform: scale(1.5) rotate(180deg); }
+                }
+
+                @keyframes twirl {
+                  0%, 100% { transform: translateY(0px) rotate(0deg); }
+                  50% { transform: translateY(-40px) rotate(720deg); }
+                }
+
+                @keyframes float-star {
+                  0%, 100% { transform: translateY(0px) translateX(0px) rotate(0deg); }
+                  33% { transform: translateY(-30px) translateX(20px) rotate(120deg); }
+                  66% { transform: translateY(-15px) translateX(-20px) rotate(240deg); }
+                }
+
+                @keyframes pulse-heart {
+                  0%, 100% { transform: scale(1); opacity: 0.7; }
+                  50% { transform: scale(1.3); opacity: 1; }
+                }
+
+                @keyframes float-up {
+                  0% { transform: translateY(0px); }
+                  100% { transform: translateY(-100vh); }
+                }
+
+                @keyframes bounce-unicorn {
+                  0%, 100% { transform: translateY(0px) scale(1); }
+                  50% { transform: translateY(-50px) scale(1.2); }
+                }
+
+                @keyframes drift {
+                  0%, 100% { transform: translateX(0px) rotate(0deg); }
+                  50% { transform: translateX(50px) rotate(15deg); }
+                }
+
+                @keyframes glitter-scan {
+                  0% { transform: translateY(0%); }
+                  100% { transform: translateY(100%); }
+                }
+              `}</style>
             </div>
           </>
         )}
@@ -697,22 +1134,70 @@ export default function GamePlay() {
 
       {/* Bottom section - Prompt input (only show when game is active) */}
       {isGameActive && (
-        <div className="flex-[0.5] p-4 border-t-4 border-black bg-white">
+        <div className="flex-[0.5] p-4 border-t-4 border-black bg-white relative z-20">
           <div className="h-full flex flex-col">
           <div className="flex items-center justify-between mb-2">
-            <label className="font-bold">
-              {isGameActive ? 'Tell Claude your dreams and watch them get interpreted weirdly' : 'Prompt Input'}
-            </label>
-            {isGameActive && game && (
-              <div className="flex gap-3 text-sm">
-                <span className={`font-bold ${promptHistory.length >= game.maxPrompts ? 'text-neo-pink' : 'text-gray-600'}`}>
-                  {promptHistory.length}/{game.maxPrompts} prompts
-                </span>
-                <span className={`font-bold ${prompt.length > game.maxCharacters ? 'text-neo-pink' : 'text-gray-600'}`}>
-                  {prompt.length}/{game.maxCharacters} chars
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              <label className="font-bold">
+                {isGameActive ? 'Tell Claude your dreams and watch them get interpreted weirdly' : 'Prompt Input'}
+              </label>
+
+              {/* Cancel Sabotage Button - shown when victim has active sabotages */}
+              {currentParticipant?.activeSabotages && currentParticipant.activeSabotages.length > 0 && (
+                <Button
+                  variant="yellow"
+                  className="text-xs font-bold whitespace-nowrap px-3 py-1.5 h-auto"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/sabotage/cancel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ gameCode, participantId }),
+                      });
+                      if (response.ok) {
+                        toast.success('Sabotages cancelled!');
+
+                        // Update local promptHistory state
+                        setPromptHistory(prev => [...prev, '[SABOTAGE CANCELLED]']);
+
+                        // Update game state
+                        setGame(prev => {
+                          if (!prev) return prev;
+                          return {
+                            ...prev,
+                            participants: prev.participants.map(p =>
+                              p.id === participantId
+                                ? { ...p, activeSabotages: [], promptHistory: [...p.promptHistory, { prompt: '[SABOTAGE CANCELLED]', timestamp: Date.now() }] }
+                                : p
+                            ),
+                          };
+                        });
+                      } else {
+                        const error = await response.json();
+                        toast.error(error.error);
+                      }
+                    } catch {
+                      toast.error('Failed to cancel sabotage');
+                    }
+                  }}
+                >
+                  Cancel Sabotage (costs 1 prompt)
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isGameActive && game && (
+                <div className="flex gap-3 text-sm">
+                  <span className={`font-bold ${promptHistory.length >= game.maxPrompts ? 'text-neo-pink' : 'text-gray-600'}`}>
+                    {promptHistory.length}/{game.maxPrompts} prompts
+                  </span>
+                  <span className={`font-bold ${prompt.length > game.maxCharacters ? 'text-neo-pink' : 'text-gray-600'}`}>
+                    {prompt.length}/{game.maxCharacters} chars
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           <Textarea
@@ -782,6 +1267,310 @@ export default function GamePlay() {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Live Standings Drawer - Only show during active game */}
+      {isGameActive && (
+        <>
+          {/* Tab Button - Fixed to right side */}
+          <button
+            onClick={() => setShowLiveStandings(!showLiveStandings)}
+            className="fixed right-0 top-1/2 -translate-y-1/2 bg-neo-pink neo-border neo-shadow px-3 py-6 font-black text-sm z-40 hover:scale-110 transition-transform"
+            style={{ borderRadius: '8px 0 0 8px' }}
+          >
+            {showLiveStandings ? '→' : '← LIVE'}
+          </button>
+
+          {/* Drawer Overlay */}
+          <AnimatePresence>
+            {showLiveStandings && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/50 z-50"
+                onClick={() => setShowLiveStandings(false)}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Drawer Content */}
+          <AnimatePresence>
+            {showLiveStandings && game && (
+              <motion.div
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-neo-bg neo-border-l neo-shadow-lg z-50 overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="bg-neo-pink neo-border-b px-6 py-4 flex items-center justify-between flex-shrink-0">
+                  <h2 className="font-black text-2xl text-white">LIVE STANDINGS</h2>
+                  <Button
+                    variant="default"
+                    onClick={() => setShowLiveStandings(false)}
+                    className="bg-white text-black hover:bg-gray-100"
+                  >
+                    Close
+                  </Button>
+                </div>
+
+                {/* Standings List */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-3">
+                  {game.participants
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((participant) => {
+                      const isMe = participant.id === participantId;
+                      const isExpanded = expandedParticipant === participant.id;
+
+                      return (
+                        <Card
+                          key={participant.id}
+                          className={`p-4 ${isMe ? 'ring-4 ring-neo-pink' : ''}`}
+                        >
+                          <CardContent className="p-0 space-y-3">
+                            {/* Name and reactions */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex flex-col gap-2">
+                                <p className={`font-black text-lg ${isMe ? 'text-neo-pink' : ''}`}>
+                                  {participant.name} {isMe && '(You)'}
+                                </p>
+
+                                {/* Reaction counts */}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {EMOJI_REACTIONS.map(({ type, emoji, color }) => {
+                                    const count = participant.reactions[type] || 0;
+                                    if (count === 0) return null;
+
+                                    return (
+                                      <Badge key={type} className={`${color} text-white px-1.5 py-0.5 border-black flex items-center gap-0.5`}>
+                                        <span className="text-xl">{emoji}</span>
+                                        <span className="text-sm font-bold">{count}</span>
+                                      </Badge>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Sabotage button - only show if sabotage mode is on, not yourself, and haven't used sabotage yet */}
+                              {game?.sabotageMode && !isMe && currentParticipant && !currentParticipant.sabotageUsed && (
+                                <Button
+                                  variant="pink"
+                                  className="text-2xl px-4 py-2 h-auto"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTarget(participant.id);
+                                    setShowSabotagePanel(true);
+                                  }}
+                                >
+                                  😈
+                                </Button>
+                              )}
+
+                              {/* Show "Used" indicator if sabotage was already used */}
+                              {game?.sabotageMode && !isMe && currentParticipant?.sabotageUsed && (
+                                <Badge className="bg-gray-400 text-white px-3 py-1.5 text-xs font-bold">
+                                  😈 Used
+                                </Badge>
+                              )}
+                            </div>
+
+                            {/* Preview */}
+                            <div
+                              className={`neo-border bg-white transition-all relative ${
+                                isExpanded ? 'h-96 overflow-auto cursor-default' : 'h-48 overflow-hidden cursor-pointer hover:scale-[1.02]'
+                              }`}
+                              onClick={() => !isExpanded && setExpandedParticipant(participant.id)}
+                            >
+                              {/* Close button when expanded */}
+                              {isExpanded && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedParticipant(null);
+                                  }}
+                                  className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-white/90 hover:bg-red-500 hover:text-white neo-border rounded transition-colors text-sm font-bold z-10"
+                                >
+                                  ✕
+                                </button>
+                              )}
+
+                              {/* Sabotage badges */}
+                              {participant.activeSabotages && participant.activeSabotages.length > 0 && (
+                                <div className="absolute top-2 left-2 flex gap-1 z-10">
+                                  {participant.activeSabotages.map((sabotage, idx) => (
+                                    <span key={idx} className="text-xs bg-red-500 text-white px-2 py-1 rounded font-bold">
+                                      {sabotageOptions.find(s => s.type === sabotage)?.emoji}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {game && (
+                                <PreviewRenderer
+                                  renderMode={game.renderMode}
+                                  html={participant.currentCode.html}
+                                  css={participant.currentCode.css}
+                                  jsx={participant.currentCode.jsx}
+                                  className="w-full h-full border-0"
+                                />
+                              )}
+                            </div>
+
+                            {/* Reaction buttons */}
+                            <div className="flex gap-2 justify-center flex-wrap">
+                              {EMOJI_REACTIONS.map(({ type, emoji, color }) => (
+                                <button
+                                  key={type}
+                                  onClick={async () => {
+                                    try {
+                                      const response = await fetch('/api/react', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          gameCode,
+                                          participantId: participant.id,
+                                          reactionType: type,
+                                          voterFingerprint: fingerprint,
+                                        }),
+                                      });
+                                      if (!response.ok) {
+                                        const error = await response.json();
+                                        toast.error(error.error);
+                                      }
+                                    } catch {
+                                      toast.error('Failed to send reaction');
+                                    }
+                                  }}
+                                  className={`${color} text-white px-3 py-2 neo-border rounded text-2xl hover:scale-110 transition-transform`}
+                                  title={`Send ${emoji}`}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      )}
+
+      {/* Sabotage Panel Modal */}
+      {showSabotagePanel && game && currentParticipant && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-8"
+          onClick={() => {
+            setShowSabotagePanel(false);
+            setSelectedTarget(null);
+            setSelectedSabotage(null);
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.8, y: 50 }}
+            animate={{ scale: 1, y: 0 }}
+            className="bg-white neo-border neo-shadow-lg max-w-3xl w-full max-h-[80vh] overflow-auto p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-6">
+              <h2 className="font-[family-name:var(--font-display)] text-4xl mb-2">
+                😈 SABOTAGE MODE
+              </h2>
+              <p className="text-lg text-gray-600">
+                {selectedTarget
+                  ? `Sabotaging ${game.participants.find(p => p.id === selectedTarget)?.name}!`
+                  : 'Sacrifice 1 prompt to sabotage a player. Choose wisely!'}
+              </p>
+            </div>
+
+            {/* Sabotage Options */}
+            <div className="mb-6">
+              <h3 className="font-bold text-xl mb-3">Select Sabotage:</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {sabotageOptions.map((option) => (
+                  <button
+                    key={option.type}
+                    onClick={() => setSelectedSabotage(option.type)}
+                    className={`neo-border p-4 text-left transition-all hover:scale-105 ${
+                      selectedSabotage === option.type
+                        ? 'bg-neo-pink text-white ring-4 ring-neo-pink'
+                        : 'bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="text-3xl mb-2">{option.emoji}</div>
+                    <div className="font-bold text-sm">{option.name}</div>
+                    <div className="text-xs mt-1 opacity-80">{option.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Target Selection - Only show if no target pre-selected */}
+            {!selectedTarget && (
+              <div className="mb-6">
+                <h3 className="font-bold text-xl mb-3">Select Target:</h3>
+                <div className="space-y-2">
+                  {game.participants
+                    .filter(p => p.id !== participantId)
+                    .map((participant) => (
+                      <button
+                        key={participant.id}
+                        onClick={() => setSelectedTarget(participant.id)}
+                        className={`w-full neo-border p-3 text-left transition-all ${
+                          selectedTarget === participant.id
+                            ? 'bg-neo-yellow ring-4 ring-neo-yellow'
+                            : 'bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold">{participant.name}</span>
+                          <span className="text-sm text-gray-600">
+                            {participant.promptHistory.length}/{game.maxPrompts} prompts used
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <Button
+                variant="default"
+                onClick={() => {
+                  setShowSabotagePanel(false);
+                  setSelectedTarget(null);
+                  setSelectedSabotage(null);
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="pink"
+                onClick={handleSabotage}
+                disabled={!selectedSabotage || !selectedTarget || isSabotaging}
+                className="flex-1"
+              >
+                {isSabotaging ? 'Sabotaging...' : 'UNLEASH CHAOS 😈'}
+              </Button>
+            </div>
+
+            <p className="text-xs text-gray-500 text-center mt-4">
+              ⚠️ This will cost you 1 prompt and can only be used once!
+            </p>
+          </motion.div>
+        </motion.div>
       )}
 
       {/* Final Standings Modal */}

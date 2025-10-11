@@ -21,6 +21,16 @@ export interface Vote {
   timestamp: number;
 }
 
+export type SabotageType = 'comic-sans' | 'rotate-180' | 'lights-off' | 'inverted-colors' | 'giant-text' | 'glitter-bomb';
+
+export interface Sabotage {
+  id: string;
+  type: SabotageType;
+  targetParticipantId: string;
+  sourceParticipantId: string;
+  timestamp: number;
+}
+
 export interface Participant {
   id: string;
   name: string;
@@ -37,6 +47,8 @@ export interface Participant {
   voteCount: number;
   reactions: Record<ReactionType, number>;
   joinedAt: number;
+  sabotageUsed: boolean; // Has this participant used their one sabotage?
+  activeSabotages: SabotageType[]; // Current sabotages affecting this participant
 }
 
 export interface Game {
@@ -50,12 +62,14 @@ export interface Game {
   duration: number;
   maxPrompts: number; // Maximum number of prompts per participant
   maxCharacters: number; // Maximum characters per prompt
+  sabotageMode: boolean; // Whether sabotage power-ups are enabled
   startTime: number | null;
   votingStartTime: number | null;
   createdAt: number;
   participants: Participant[];
   votes: Vote[];
   reactions: Reaction[];
+  sabotages: Sabotage[]; // Track all sabotage events
   winnerId: string | null;
 }
 
@@ -69,6 +83,7 @@ export interface CreateGameRequest {
   duration: number;
   maxPrompts?: number; // Optional max prompts per participant (default: 3)
   maxCharacters?: number; // Optional max characters per prompt (default: 1000)
+  sabotageMode?: boolean; // Optional sabotage power-ups enabled (default: false)
   customCode?: string; // Optional custom game code
 }
 
@@ -174,4 +189,10 @@ export interface PromptSubmitPayload {
   gameCode: string;
   participantId: string;
   prompt: string;
+}
+
+export interface SabotageAppliedEvent {
+  targetParticipantId: string;
+  sabotageType: SabotageType;
+  activeSabotages: SabotageType[];
 }

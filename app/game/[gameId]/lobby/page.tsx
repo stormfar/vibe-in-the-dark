@@ -125,6 +125,8 @@ export default function GameLobby() {
           reactions: { fire: 0, laugh: 0, think: 0, shock: 0, cool: 0 },
           voteCount: 0,
           joinedAt: Date.now(),
+          sabotageUsed: false,
+          activeSabotages: [],
         };
 
         return {
