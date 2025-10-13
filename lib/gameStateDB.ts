@@ -134,11 +134,18 @@ export async function getGame(code: string): Promise<Game | undefined> {
   const game = data?.game_data as Game;
   // Store version in a non-enumerable property so it doesn't pollute the Game object
   if (game) {
-    Object.defineProperty(game, '__version', {
-      value: data.version,
-      writable: false,
-      enumerable: false,
-    });
+    // Check if __version already exists before defining it
+    if (!Object.prototype.hasOwnProperty.call(game, '__version')) {
+      Object.defineProperty(game, '__version', {
+        value: data.version,
+        writable: true, // Allow updates
+        enumerable: false,
+        configurable: true, // Allow redefinition
+      });
+    } else {
+      // Update existing version
+      (game as any).__version = data.version;
+    }
   }
   return game;
 }
@@ -164,11 +171,7 @@ async function updateGame(game: Game, maxRetries = 3): Promise<boolean> {
 
     if (!error && data) {
       // Success! Update the version on the game object for future updates
-      Object.defineProperty(game, '__version', {
-        value: data.version,
-        writable: false,
-        enumerable: false,
-      });
+      (game as any).__version = data.version;
       return true;
     }
 
