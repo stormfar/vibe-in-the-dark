@@ -556,7 +556,7 @@ export async function addSabotage(
   sourceParticipantId: string,
   sabotageType: string,
   sabotageId: string
-): Promise<{ success: boolean; activeSabotages?: string[]; error?: string }> {
+): Promise<{ success: boolean; activeSabotages?: any[]; error?: string }> {
   const game = await getGame(gameCode);
   if (!game) {
     return { success: false, error: 'Game not found' };
@@ -595,7 +595,7 @@ export async function cancelSabotage(
   gameCode: string,
   participantId: string,
   sabotageType: string
-): Promise<{ success: boolean; activeSabotages?: string[]; error?: string }> {
+): Promise<{ success: boolean; activeSabotages?: any[]; error?: string }> {
   const game = await getGame(gameCode);
   if (!game) {
     return { success: false, error: 'Game not found' };
