@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGame } from '@/lib/gameState';
-import type { ReactionRequest, ReactionResponse, Reaction } from '@/lib/types';
+import { addReaction } from '@/lib/gameStateDB';
+import type { ReactionRequest, ReactionResponse } from '@/lib/types';
 import { nanoid } from 'nanoid';
 
 export async function POST(req: NextRequest) {
@@ -12,39 +12,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const game = getGame(gameCode);
-    if (!game) {
-      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    const result = await addReaction(gameCode, participantId, reactionType, nanoid(), voterFingerprint);
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error || 'Failed to add reaction' }, { status: 404 });
     }
 
-    const participant = game.participants.find(p => p.id === participantId);
-    if (!participant) {
-      return NextResponse.json({ error: 'Participant not found' }, { status: 404 });
-    }
-
-    // Always add new reaction (unlimited reactions - additive)
-    const reaction: Reaction = {
-      id: nanoid(),
-      participantId,
-      type: reactionType,
-      voterFingerprint,
-      timestamp: Date.now(),
-    };
-    game.reactions.push(reaction);
-
-    // Update participant reaction count (additive)
-    participant.reactions[reactionType]++;
-
-    // Emit reaction update via PartyKit
+    // Emit reaction update via Supabase Realtime
     const { emitReactionUpdate } = await import('@/lib/socket');
-    await emitReactionUpdate(game.code, {
+    await emitReactionUpdate(gameCode, {
       participantId,
-      reactions: participant.reactions,
+      reactions: result.reactions!,
     });
 
     const response: ReactionResponse = {
       success: true,
-      reactions: participant.reactions,
+      reactions: result.reactions!,
     };
 
     return NextResponse.json(response);

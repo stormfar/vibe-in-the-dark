@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { addVote, removeVote } from '@/lib/gameState';
+import { addVote, removeVote } from '@/lib/gameStateDB';
 import { emitVoteUpdate } from '@/lib/socket';
 import type { VoteRequest, VoteResponse } from '@/lib/types';
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Add vote
-    const result = addVote(gameCode, participantId, voterFingerprint);
+    const result = await addVote(gameCode, participantId, voterFingerprint);
 
     if (!result.success) {
       const statusCode = result.error === 'Voting not open yet' ? 400 : 403;
@@ -62,7 +62,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Remove vote
-    const result = removeVote(gameCode, voterFingerprint);
+    const result = await removeVote(gameCode, voterFingerprint);
 
     if (!result.success) {
       return NextResponse.json(

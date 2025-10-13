@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGame } from '@/lib/gameState';
+import { getGame, addSabotage } from '@/lib/gameStateDB';
 import { emitSabotageApplied } from '@/lib/socket';
 import { v4 as uuidv4 } from 'uuid';
 import type { SabotageType } from '@/lib/types';
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get game
-    const game = getGame(gameCode);
+    const game = await getGame(gameCode);
     if (!game) {
       return NextResponse.json(
         { error: 'Game not found' },
@@ -89,24 +89,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Apply sabotage
-    sourceParticipant.sabotageUsed = true;
-    targetParticipant.activeSabotages.push(sabotageType);
+    // Apply sabotage using DB helper
+    const result = await addSabotage(gameCode, targetParticipantId, sourceParticipantId, sabotageType, uuidv4());
 
-    // Record sabotage event
-    game.sabotages.push({
-      id: uuidv4(),
-      type: sabotageType,
-      targetParticipantId,
-      sourceParticipantId,
-      timestamp: Date.now(),
-    });
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to apply sabotage' },
+        { status: 400 }
+      );
+    }
 
     // Emit sabotage event to target
     await emitSabotageApplied(gameCode, {
       targetParticipantId,
       sabotageType,
-      activeSabotages: targetParticipant.activeSabotages,
+      activeSabotages: result.activeSabotages!,
     });
 
     console.log(`[Sabotage] ${sourceParticipant.name} sabotaged ${targetParticipant.name} with ${sabotageType}`);

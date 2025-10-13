@@ -38,9 +38,13 @@ A real-time multiplayer web app where participants attempt to replicate a target
      - **Anon/Public Key** (starts with `eyJ...`)
      - **Service Role Key** (starts with `eyJ...`, keep this secret!)
 
-   **Important:** No database setup required! Supabase Realtime works without any database tables. We only use the Broadcast feature for real-time messaging.
+3. **Run database migration:**
+   - Go to your Supabase dashboard → SQL Editor
+   - Copy the contents of `supabase/migrations/001_create_games_table.sql`
+   - Paste and run the SQL
+   - This creates the games table that stores game state
 
-3. **Set up environment variables:**
+4. **Set up environment variables:**
    ```bash
    cp .env.example .env
    ```
@@ -57,12 +61,12 @@ A real-time multiplayer web app where participants attempt to replicate a target
    NODE_ENV=development
    ```
 
-4. **Run the development server:**
+5. **Run the development server:**
    ```bash
    npm run dev
    ```
 
-5. **Open your browser:**
+6. **Open your browser:**
    - Main app: [http://localhost:3000](http://localhost:3000)
    - Admin: [http://localhost:3000/admin/new](http://localhost:3000/admin/new)
 
@@ -108,8 +112,8 @@ A real-time multiplayer web app where participants attempt to replicate a target
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS v4 + Neobrutalism design system
 - **Real-time:** Supabase Realtime (Broadcast feature)
+- **Storage:** Supabase Database (PostgreSQL with JSONB)
 - **AI:** Holidu LiteLLM (claude-sonnet-4-20250514 via proxy)
-- **State:** In-memory (Map on server)
 - **Animations:** Framer Motion
 - **Voting:** FingerprintJS for one-vote-per-device
 - **Confetti:** canvas-confetti
@@ -117,7 +121,7 @@ A real-time multiplayer web app where participants attempt to replicate a target
 ### Key Features Implemented
 
 ✅ Real-time communication via Supabase Realtime Broadcast
-✅ In-memory game state management
+✅ Persistent game state in Supabase Database
 ✅ Claude AI prompt processing
 ✅ Neobrutalism UI components
 ✅ Device fingerprinting for voting
@@ -142,11 +146,13 @@ A real-time multiplayer web app where participants attempt to replicate a target
   /api/*                              # API routes
 /lib
   /types.ts                           # TypeScript interfaces
-  /gameState.ts                       # In-memory state management
+  /gameStateDB.ts                     # Supabase database state management
   /socket.ts                          # Server-side Supabase Realtime utilities
   /socketClient.ts                    # Client-side Supabase Realtime wrapper
   /claude.ts                          # Claude API wrapper
   /fingerprint.ts                     # FingerprintJS wrapper
+/supabase
+  /migrations                         # SQL migrations
 /components/ui                        # Neobrutalism UI components
 ```
 
@@ -232,12 +238,12 @@ If you need more, Supabase Pro is $25/month with significantly higher limits.
 
 ## 🐛 Known Limitations
 
-- Games are stored in memory (not persistent across restarts)
+- Games are auto-deleted after 2 hours (by design for temporary games)
 - Max 20 participants per game
 - No authentication system
 - Voting is device-based (can be circumvented)
 - LiteLLM API costs apply per prompt
-- Supabase free tier: 200 concurrent connections
+- Supabase free tier: 200 concurrent connections, 500MB database
 
 ## 📄 Licence
 

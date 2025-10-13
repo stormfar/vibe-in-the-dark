@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { openVoting, getGame } from '@/lib/gameState';
+import { openVoting, getGame } from '@/lib/gameStateDB';
 import { emitGameStatusUpdate } from '@/lib/socket';
 
 export async function POST(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const success = openVoting(gameCode);
+    const success = await openVoting(gameCode);
 
     if (!success) {
       return NextResponse.json(
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const game = getGame(gameCode);
+    const game = await getGame(gameCode);
     if (!game) {
       return NextResponse.json(
         { error: 'Game not found' },

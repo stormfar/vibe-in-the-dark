@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startGame, getGame, moveToActive, openVoting, setGameTimer, clearGameTimer } from '@/lib/gameState';
+import { startGame, getGame, moveToActive, openVoting, setGameTimer, clearGameTimer } from '@/lib/gameStateDB';
 import { emitGameStatusUpdate } from '@/lib/socket';
 
 export async function POST(request: NextRequest) {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Start game (moves to reveal phase)
-    const success = startGame(gameCode);
+    const success = await startGame(gameCode);
 
     if (!success) {
       return NextResponse.json(
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const game = getGame(gameCode);
+    const game = await getGame(gameCode);
     if (!game) {
       return NextResponse.json(
         { error: 'Game not found' },
@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
 
     // Skip reveal phase - go straight to active
     console.log('Moving directly to active phase (no reveal)');
-    moveToActive(gameCode);
-    const updatedGame = getGame(gameCode);
+    await moveToActive(gameCode);
+    const updatedGame = await getGame(gameCode);
 
     if (!updatedGame) {
       return NextResponse.json(
@@ -58,13 +58,13 @@ export async function POST(request: NextRequest) {
     const durationMs = updatedGame.duration * 1000;
     console.log(`[Game ${gameCode}] Setting timer for ${updatedGame.duration}s (${durationMs}ms)`);
 
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       console.log(`[Game ${gameCode}] Timer expired! Opening voting automatically`);
-      const success = openVoting(gameCode);
+      const success = await openVoting(gameCode);
 
       if (success) {
         console.log(`[Game ${gameCode}] Voting opened automatically`);
-        const game = getGame(gameCode);
+        const game = await getGame(gameCode);
         if (game) {
           emitGameStatusUpdate(gameCode, {
             status: 'voting',

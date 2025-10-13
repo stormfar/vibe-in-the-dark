@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGame } from '@/lib/gameState';
+import { getGame, cancelSabotage, addPromptToHistory } from '@/lib/gameStateDB';
 import { emitSabotageApplied } from '@/lib/socket';
 
 export async function POST(request: NextRequest) {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get game
-    const game = getGame(gameCode);
+    const game = await getGame(gameCode);
     if (!game) {
       return NextResponse.json(
         { error: 'Game not found' },
@@ -60,15 +60,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Clear all sabotages
-    participant.activeSabotages = [];
+    // Clear all sabotages for this participant using DB helper
+    // We need to clear all types, so call for each active sabotage
+    for (const sabotageType of participant.activeSabotages) {
+      await cancelSabotage(gameCode, participantId, sabotageType);
+    }
 
     // Add a fake prompt to history to consume one prompt (only during active game)
     if (game.status === 'active') {
-      participant.promptHistory.push({
-        prompt: '[SABOTAGE CANCELLED]',
-        timestamp: Date.now(),
-      });
+      await addPromptToHistory(gameCode, participantId, '[SABOTAGE CANCELLED]');
     }
 
     // Emit sabotage update (cleared)

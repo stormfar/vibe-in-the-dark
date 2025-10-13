@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGame } from '@/lib/gameState';
+import { getGame } from '@/lib/gameStateDB';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const game = getGame(gameCode);
+    const game = await getGame(gameCode);
 
     if (!game) {
       return NextResponse.json(

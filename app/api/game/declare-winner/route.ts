@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { declareWinner } from '@/lib/gameState';
+import { declareWinner } from '@/lib/gameStateDB';
 import { emitWinnerDeclared } from '@/lib/socket';
 
 export async function POST(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = declareWinner(gameCode);
+    const result = await declareWinner(gameCode);
 
     if (!result) {
       return NextResponse.json(

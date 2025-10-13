@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGame, addParticipant } from '@/lib/gameState';
+import { getGame, addParticipant } from '@/lib/gameStateDB';
 import { emitParticipantJoined } from '@/lib/socket';
 import type { JoinGameRequest, JoinGameResponse } from '@/lib/types';
 
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get game by code
-    const game = getGame(gameCode);
+    const game = await getGame(gameCode);
 
     if (!game) {
       return NextResponse.json(
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Add participant (temporary socketId will be updated when they connect)
-    const participant = addParticipant(game.code, participantName, 'temp-socket-id');
+    const participant = await addParticipant(game.code, participantName, 'temp-socket-id');
 
     if (!participant) {
       return NextResponse.json(

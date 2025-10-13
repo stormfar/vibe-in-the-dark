@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createGame } from '@/lib/gameState';
+import { createGame } from '@/lib/gameStateDB';
 import type { CreateGameRequest, CreateGameResponse } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the game
-    const game = createGame(renderMode, targetType, duration, targetImageUrl, targetText, targetDescription, sabotageMode, customCode, maxPrompts, maxCharacters);
+    const game = await createGame(renderMode, targetType, duration, targetImageUrl, targetText, targetDescription, sabotageMode, customCode, maxPrompts, maxCharacters);
 
     console.log('Game created successfully:', {
       gameCode: game.code,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGame, updateParticipantCode, addPromptToHistory } from '@/lib/gameState';
+import { getGame, updateParticipantCode, addPromptToHistory } from '@/lib/gameStateDB';
 import { processPrompt } from '@/lib/claude';
 import { emitPreviewUpdate } from '@/lib/socket';
 import type { PromptRequest, PromptResponse } from '@/lib/types';
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get game
-    const game = getGame(gameCode);
+    const game = await getGame(gameCode);
     if (!game) {
       return NextResponse.json(
         { error: 'Game not found' },
@@ -95,16 +95,16 @@ export async function POST(request: NextRequest) {
 
     // Update participant code based on mode
     if (game.renderMode === 'retro' && result.html !== undefined && result.css !== undefined) {
-      updateParticipantCode(gameCode, participantId, result.html, result.css);
+      await updateParticipantCode(gameCode, participantId, result.html, result.css);
     } else if (game.renderMode === 'turbo' && result.jsx !== undefined) {
-      updateParticipantCode(gameCode, participantId, undefined, undefined, result.jsx);
+      await updateParticipantCode(gameCode, participantId, undefined, undefined, result.jsx);
     }
 
     // Add to prompt history
-    addPromptToHistory(gameCode, participantId, prompt);
+    await addPromptToHistory(gameCode, participantId, prompt);
 
     // Get updated game to fetch current prompt count
-    const updatedGame = getGame(gameCode);
+    const updatedGame = await getGame(gameCode);
     const updatedParticipant = updatedGame?.participants.find(p => p.id === participantId);
     const promptCount = updatedParticipant?.promptHistory.length || 0;
 
