@@ -27,6 +27,7 @@ export default function AdminGameView() {
   const [isDisconnected, setIsDisconnected] = useState(false);
   const [fingerprint, setFingerprint] = useState<string>('');
   const [isReacting, setIsReacting] = useState(false);
+  const [isApplyingTiebreakers, setIsApplyingTiebreakers] = useState(false);
 
   // Fetch fingerprint for admin reactions
   useEffect(() => {
@@ -425,6 +426,42 @@ export default function AdminGameView() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Check if there are any ties in the current standings
+  const hasTies = () => {
+    if (!game) return false;
+    const voteCounts = game.participants.map(p => p.voteCount);
+    const uniqueCounts = [...new Set(voteCounts)];
+    return uniqueCounts.some(count => voteCounts.filter(v => v === count).length > 1);
+  };
+
+  // Handle applying tiebreakers
+  const handleApplyTiebreakers = async () => {
+    if (!game) return;
+
+    setIsApplyingTiebreakers(true);
+
+    try {
+      const response = await fetch('/api/tiebreaker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to apply tiebreakers');
+        return;
+      }
+
+      const data = await response.json();
+      toast.success(data.message || 'Tiebreakers applied!');
+    } catch {
+      toast.error('Failed to apply tiebreakers');
+    } finally {
+      setIsApplyingTiebreakers(false);
+    }
+  };
+
   if (!game) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neo-bg">
@@ -570,9 +607,25 @@ export default function AdminGameView() {
               </Button>
             )}
             {game.status === 'voting' && (
-              <Button variant="pink" onClick={handleDeclareWinner} className="animate-pulse">
-                CROWN THE CHAMPION
-              </Button>
+              <div className="flex flex-col gap-3">
+                {hasTies() ? (
+                  <Button
+                    variant="yellow"
+                    onClick={handleApplyTiebreakers}
+                    disabled={isApplyingTiebreakers}
+                    className="font-black"
+                  >
+                    {isApplyingTiebreakers ? 'Breaking Ties...' : '🎲 Break Ties'}
+                  </Button>
+                ) : (
+                  <Badge variant="blue" className="text-base px-4 py-2 self-center">
+                    ✅ No Ties
+                  </Badge>
+                )}
+                <Button variant="pink" onClick={handleDeclareWinner} className="animate-pulse">
+                  CROWN THE CHAMPION
+                </Button>
+              </div>
             )}
             {game.status === 'finished' && (
               <Button variant="pink" onClick={() => router.push('/admin/new')} className="text-xl px-8 py-6">
@@ -848,9 +901,17 @@ export default function AdminGameView() {
                   return (
                     <motion.div
                       key={participant.id}
+                      layout
                       initial={{ opacity: 0, x: -50 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
+                      animate={{
+                        opacity: 1,
+                        x: 0,
+                        scale: isWinner ? 1.02 : 1,
+                      }}
+                      transition={{
+                        layout: { type: 'spring', stiffness: 300, damping: 30 },
+                        delay: index * 0.1
+                      }}
                       className={`flex items-center gap-4 p-4 neo-border ${
                         isWinner ? 'bg-yellow-100 border-yellow-500' : 'bg-white'
                       }`}
@@ -907,7 +968,23 @@ export default function AdminGameView() {
                 })}
             </div>
 
-            <div className="mt-8 text-center space-y-4">
+            <div className="mt-8 flex flex-col gap-3 items-center">
+              {/* Tiebreaker button - shown if there are ties */}
+              {hasTies() ? (
+                <Button
+                  variant="yellow"
+                  className="text-lg py-4 px-8 font-black"
+                  onClick={handleApplyTiebreakers}
+                  disabled={isApplyingTiebreakers}
+                >
+                  {isApplyingTiebreakers ? 'Breaking Ties...' : '🎲 Break Ties'}
+                </Button>
+              ) : (
+                <Badge variant="blue" className="text-base px-4 py-2">
+                  ✅ No Ties
+                </Badge>
+              )}
+
               <Button
                 variant="pink"
                 className="text-2xl py-6 px-12 w-full"

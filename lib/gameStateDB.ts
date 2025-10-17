@@ -475,6 +475,69 @@ export async function declareWinner(
   };
 }
 
+// Apply tiebreakers - randomly add 1 point to one participant in each tied group
+export async function applyTiebreakers(
+  gameCode: string
+): Promise<{
+  success: boolean;
+  updatedParticipants: { participantId: string; newVoteCount: number }[];
+  error?: string;
+}> {
+  const game = await getGame(gameCode);
+  if (!game) {
+    return { success: false, updatedParticipants: [], error: 'Game not found' };
+  }
+
+  if (game.status !== 'voting' && game.status !== 'finished') {
+    return {
+      success: false,
+      updatedParticipants: [],
+      error: 'Tiebreakers can only be applied during voting or after the game is finished',
+    };
+  }
+
+  // Find all unique vote counts
+  const voteCounts = game.participants.map((p) => p.voteCount);
+  const uniqueCounts = [...new Set(voteCounts)].sort((a, b) => b - a);
+
+  // Check if there are any ties
+  const hasTies = uniqueCounts.some((count) => voteCounts.filter((v) => v === count).length > 1);
+
+  if (!hasTies) {
+    return { success: false, updatedParticipants: [], error: 'No ties to break' };
+  }
+
+  // Break ties by randomly adding 1 point to one participant in each tied group
+  const updatedParticipants: { participantId: string; newVoteCount: number }[] = [];
+  const processedCounts = new Set<number>();
+
+  for (const count of uniqueCounts) {
+    // Find all participants with this vote count
+    const tiedParticipants = game.participants.filter((p) => p.voteCount === count);
+
+    // If there's a tie (more than 1 participant with this count) and we haven't processed it yet
+    if (tiedParticipants.length > 1 && !processedCounts.has(count)) {
+      // Randomly select one to get a bonus point
+      const randomIndex = Math.floor(Math.random() * tiedParticipants.length);
+      const luckyParticipant = tiedParticipants[randomIndex];
+
+      // Add 1 point
+      luckyParticipant.voteCount += 1;
+
+      updatedParticipants.push({
+        participantId: luckyParticipant.id,
+        newVoteCount: luckyParticipant.voteCount,
+      });
+
+      processedCounts.add(count);
+    }
+  }
+
+  await updateGame(game);
+
+  return { success: true, updatedParticipants };
+}
+
 // End game manually
 export async function endGame(gameCode: string): Promise<boolean> {
   const game = await getGame(gameCode);

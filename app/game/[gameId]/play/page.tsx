@@ -57,6 +57,7 @@ export default function GamePlay() {
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [isSabotaging, setIsSabotaging] = useState(false);
   const [sabotageNotification, setSabotageNotification] = useState<{ type: import('@/lib/types').SabotageType; show: boolean } | null>(null);
+  const [isApplyingTiebreakers, setIsApplyingTiebreakers] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const handlersSetupRef = useRef<boolean>(false);
@@ -567,12 +568,46 @@ export default function GamePlay() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Check if there are any ties in the current standings
+  const hasTies = () => {
+    if (!game) return false;
+    const voteCounts = game.participants.map(p => p.voteCount);
+    const uniqueCounts = [...new Set(voteCounts)];
+    return uniqueCounts.some(count => voteCounts.filter(v => v === count).length > 1);
+  };
+
+  // Handle applying tiebreakers
+  const handleApplyTiebreakers = async () => {
+    if (!game) return;
+
+    setIsApplyingTiebreakers(true);
+
+    try {
+      const response = await fetch('/api/tiebreaker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to apply tiebreakers');
+        return;
+      }
+
+      const data = await response.json();
+      toast.success(data.message || 'Tiebreakers applied!');
+    } catch {
+      toast.error('Failed to apply tiebreakers');
+    } finally {
+      setIsApplyingTiebreakers(false);
+    }
+  };
+
   const sabotageOptions = [
-    { type: 'comic-sans' as const, name: 'Papyrus Everything', emoji: '🤡', description: 'Changes all fonts to Papyrus' },
     { type: 'rotate-180' as const, name: 'Upside Down', emoji: '🙃', description: 'Flips the entire layout 180°' },
     { type: 'lights-off' as const, name: 'REALLY Vibe In The Dark', emoji: '🌑', description: 'Blacks out their screen completely!' },
     { type: 'inverted-colors' as const, name: 'Inverted Colors', emoji: '🌈', description: 'Inverts all colors' },
-    { type: 'giant-text' as const, name: 'Giant Text', emoji: '📏', description: 'Multiplies font sizes by 3x' },
     { type: 'glitter-bomb' as const, name: 'Glitter Bomb', emoji: '✨', description: 'Unicornifies everything with sparkles' },
   ];
 
@@ -794,14 +829,8 @@ export default function GamePlay() {
                   <div
                     className="w-full h-full"
                     style={{
-                      ...(currentParticipant?.activeSabotages?.includes('comic-sans') && {
-                        fontFamily: 'Papyrus, fantasy !important',
-                      }),
                       ...(currentParticipant?.activeSabotages?.includes('inverted-colors') && {
                         filter: 'invert(1)',
-                      }),
-                      ...(currentParticipant?.activeSabotages?.includes('giant-text') && {
-                        fontSize: '300%',
                       }),
                       ...(currentParticipant?.activeSabotages?.includes('rotate-180') && {
                         transform: 'rotate(180deg)',
@@ -1605,9 +1634,17 @@ export default function GamePlay() {
                   return (
                     <motion.div
                       key={participant.id}
+                      layout
                       initial={{ opacity: 0, x: -50 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
+                      animate={{
+                        opacity: 1,
+                        x: 0,
+                        scale: isWinner ? 1.02 : 1,
+                      }}
+                      transition={{
+                        layout: { type: 'spring', stiffness: 300, damping: 30 },
+                        delay: index * 0.1
+                      }}
                       className={`flex items-center gap-4 p-4 neo-border ${
                         isWinner ? 'bg-yellow-100 border-yellow-500' : 'bg-white'
                       }`}
@@ -1664,7 +1701,23 @@ export default function GamePlay() {
                 })}
             </div>
 
-            <div className="mt-8 text-center">
+            <div className="mt-8 flex flex-col gap-3 items-center">
+              {/* Tiebreaker button - shown if there are ties */}
+              {hasTies() ? (
+                <Button
+                  variant="pink"
+                  className="text-lg py-4 px-8 font-black"
+                  onClick={handleApplyTiebreakers}
+                  disabled={isApplyingTiebreakers}
+                >
+                  {isApplyingTiebreakers ? 'Breaking Ties...' : '🎲 Break Ties'}
+                </Button>
+              ) : (
+                <Badge variant="blue" className="text-base px-4 py-2">
+                  ✅ No Ties
+                </Badge>
+              )}
+
               <Button
                 variant="default"
                 className="text-lg py-4 px-8"
