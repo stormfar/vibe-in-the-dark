@@ -3,17 +3,30 @@ const AUTH_URL = 'https://auth.holidu.com/realms/guest/protocol/openid-connect/t
 
 const RETRO_SYSTEM_PROMPT = `You are helping a participant in a coding challenge. They can only see their rendered HTML preview, not the code itself.
 
-CRITICAL: You will receive their CURRENT HTML and CSS code. Your job is to BUILD ON and MODIFY this existing code based on their new prompt. DO NOT start from scratch - always refine and evolve what's already there.
+🚨 CRITICAL INSTRUCTION - READ CAREFULLY 🚨
+You will ALWAYS receive their CURRENT HTML and CSS code in the user message. Your ONLY job is to:
+1. Take their EXISTING code
+2. Make INCREMENTAL changes based on their prompt
+3. Keep EVERYTHING that isn't explicitly changed
 
-Given their current HTML and CSS, and their natural language prompt, generate the updated HTML and CSS that incorporates their requested changes while preserving everything else.
+DO NOT EVER:
+- Start from scratch
+- Ignore their existing code
+- Remove elements unless specifically asked
+- Rewrite everything
+
+WORKFLOW:
+1. Read their current HTML/CSS carefully
+2. Understand what they're asking to change
+3. Modify ONLY the relevant parts
+4. Preserve all other existing code
+
+Think of it like editing a document - you don't rewrite the whole document, you just edit the specific sections mentioned.
 
 Rules:
-- ALWAYS start with their current code and modify it incrementally
-- Keep existing elements unless the prompt specifically asks to remove them
-- Add new elements or modify styling based on the prompt
 - Output ONLY valid HTML and CSS (no JavaScript)
-- If they ask for something unclear, make your best guess and be creative
 - Wrap CSS in a <style> tag inside the HTML
+- Be creative with their requests
 - Have fun with it - this is a game!
 
 Output format (respond with ONLY this, no explanation):
@@ -28,9 +41,25 @@ Output format (respond with ONLY this, no explanation):
 
 const TURBO_SYSTEM_PROMPT = `You are helping a participant in a React component coding challenge. They can only see their rendered component, not the code itself.
 
-CRITICAL: You will receive their CURRENT JSX component code. Your job is to BUILD ON and MODIFY this existing component based on their new prompt. DO NOT start from scratch - always refine and evolve what's already there.
+🚨 CRITICAL INSTRUCTION - READ CAREFULLY 🚨
+You will ALWAYS receive their CURRENT JSX component code in the user message. Your ONLY job is to:
+1. Take their EXISTING component code
+2. Make INCREMENTAL changes based on their prompt
+3. Keep ALL existing functionality, state, and UI elements that aren't explicitly changed
 
-Given their current JSX component and their natural language prompt, generate the updated component that incorporates their requested changes while preserving existing functionality and elements.
+DO NOT EVER:
+- Start from scratch with a fresh component
+- Ignore their existing code
+- Remove existing features unless specifically asked
+- Rewrite the entire component
+
+WORKFLOW:
+1. Read their current component code carefully
+2. Understand what they're asking to change/add
+3. Modify ONLY the relevant parts (add new state, modify JSX, adjust styling, etc.)
+4. Preserve all other existing code, imports, state, and functionality
+
+Think of it like refactoring - you're improving specific parts, not rebuilding from scratch.
 
 Available shadcn/ui components you MUST use when appropriate (use default shadcn styling, not custom styles):
 - Button: <Button variant="default|destructive|outline|secondary|ghost|link">Text</Button>
@@ -170,9 +199,18 @@ export async function processPrompt(
 
     // Select system prompt and current code based on mode
     const systemPrompt = renderMode === 'retro' ? RETRO_SYSTEM_PROMPT : TURBO_SYSTEM_PROMPT;
-    const currentCode = renderMode === 'retro'
-      ? `Current HTML:\n${currentHtml}\n\nCurrent CSS:\n${currentCss}`
-      : `Current JSX Component:\n${currentJsx}`;
+    const currentCodeSection = renderMode === 'retro'
+      ? `=== CURRENT CODE (START) ===
+HTML:
+${currentHtml}
+
+CSS:
+${currentCss}
+=== CURRENT CODE (END) ===`
+      : `=== CURRENT CODE (START) ===
+JSX Component:
+${currentJsx}
+=== CURRENT CODE (END) ===`;
 
     // Make direct API call to LiteLLM using Anthropic format
     console.log('Making API request to:', `${LITELLM_BASE_URL}/v1/messages`);
@@ -183,7 +221,12 @@ export async function processPrompt(
       messages: [
         {
           role: 'user',
-          content: `${currentCode}\n\nUser prompt: ${userPrompt}`,
+          content: `${currentCodeSection}
+
+=== USER'S REQUESTED CHANGE ===
+${userPrompt}
+
+Remember: Modify ONLY what the user asked for. Keep everything else exactly as it is in the CURRENT CODE above.`,
         },
       ],
     };
