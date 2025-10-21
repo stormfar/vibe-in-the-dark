@@ -216,11 +216,6 @@ export async function addParticipant(
     return null;
   }
 
-  // Max 20 participants
-  if (game.participants.length >= 20) {
-    return null;
-  }
-
   // Initialize code based on render mode
   const currentCode =
     game.renderMode === 'retro'
