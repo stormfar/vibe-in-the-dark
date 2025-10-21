@@ -60,9 +60,37 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Calendar } from '@/components/ui/calendar';
 import { Checkbox } from '@/components/ui/checkbox';
 
+// Mock icon component for lucide-react icons
+function MockIcon({ className }: { className?: string }) {
+  return React.createElement('span', {
+    className: `inline-block ${className || ''}`,
+    style: {
+      width: '1em',
+      height: '1em',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }
+  }, '📦');
+}
+
 // Fix common JSX issues that AI might generate
 function fixCommonJsxIssues(jsx: string): string {
   let fixed = jsx;
+
+  // Fix 0: Remove problematic inline data URLs that break Babel parsing
+  // Replace url('data:...') with a placeholder or remove it
+  fixed = fixed.replace(
+    /url\(['"]data:image\/[^'"]+['"]\)/g,
+    'none'
+  );
+
+  // Fix 0.5: Strip out lucide-react icon references and replace with MockIcon
+  // Match patterns like <MapPinIcon />, <Download />, etc.
+  fixed = fixed.replace(
+    /<([A-Z][a-zA-Z]*Icon|Download|Upload|Search|Menu|X|Check|ChevronDown|ChevronUp|ChevronLeft|ChevronRight|Plus|Minus|Star|Heart|Home|Settings|User|Mail|Phone|Calendar|Clock|Bell|Trash|Edit|Save|Copy|Share|Eye|EyeOff|Lock|Unlock|LogIn|LogOut|RefreshCw|AlertCircle|Info|HelpCircle|ExternalLink|File|Folder|Image|Video|Music|Paperclip|Maximize|Minimize|ZoomIn|ZoomOut)(\s+[^>]*?)?\/?>/g,
+    '<MockIcon$2 />'
+  );
 
   // Fix 1: Add missing value prop to SelectItem components (including multiline)
   // Match <SelectItem> tags without a value prop and add one based on the content
@@ -119,6 +147,8 @@ function fixCommonJsxIssues(jsx: string): string {
   fixed = fixed.replace(/<(SelectTrigger|SelectContent|DialogContent|CardHeader|CardContent)([^>]*?)\/>/g, '<$1$2></$1>');
 
   console.log('[JSX Fix] Applied fixes:', {
+    dataUrlsStripped: (jsx.match(/url\(['"]data:image/g) || []).length,
+    iconsReplaced: (jsx.match(/<[A-Z][a-zA-Z]*(?:Icon)?\s/g) || []).length,
     selectItemsFixed: (jsx.match(/<SelectItem/g) || []).length,
     selectsFixed: (jsx.match(/<Select[>\s]/g) || []).length
   });
@@ -232,6 +262,7 @@ export default function TurboRenderer({ jsx }: TurboRendererProps) {
         'TooltipTrigger',
         'Calendar',
         'Checkbox',
+        'MockIcon',
         finalCode
       );
 
@@ -280,7 +311,8 @@ export default function TurboRenderer({ jsx }: TurboRendererProps) {
         TooltipProvider,
         TooltipTrigger,
         Calendar,
-        Checkbox
+        Checkbox,
+        MockIcon
       );
 
       console.log('Generated component:', GeneratedComponent);

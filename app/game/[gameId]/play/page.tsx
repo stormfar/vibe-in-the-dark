@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
 import PreviewRenderer from '@/components/PreviewRenderer';
+import { SabotageEffectsWrapper } from '@/components/SabotageEffectsWrapper';
 import type { Game, GameStatus, ReactionType, WinnerDeclaredEvent } from '@/lib/types';
 
 const EMOJI_MAP: Record<ReactionType, string> = {
@@ -1438,13 +1439,18 @@ export default function GamePlay() {
                               )}
 
                               {game && (
-                                <PreviewRenderer
-                                  renderMode={game.renderMode}
-                                  html={participant.currentCode.html}
-                                  css={participant.currentCode.css}
-                                  jsx={participant.currentCode.jsx}
-                                  className="w-full h-full border-0"
-                                />
+                                <SabotageEffectsWrapper
+                                  activeSabotages={participant.activeSabotages || []}
+                                  className="w-full h-full"
+                                >
+                                  <PreviewRenderer
+                                    renderMode={game.renderMode}
+                                    html={participant.currentCode.html}
+                                    css={participant.currentCode.css}
+                                    jsx={participant.currentCode.jsx}
+                                    className="w-full h-full border-0"
+                                  />
+                                </SabotageEffectsWrapper>
                               )}
                             </div>
 

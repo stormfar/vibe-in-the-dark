@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import BlueScreenOfDeath from '@/components/BlueScreenOfDeath';
 import PreviewRenderer from '@/components/PreviewRenderer';
+import { SabotageEffectsWrapper } from '@/components/SabotageEffectsWrapper';
 import { getFingerprint } from '@/lib/fingerprint';
 import type { Game, GameStatusUpdateEvent, PreviewUpdateEvent, VoteUpdateEvent, ReactionUpdateEvent, WinnerDeclaredEvent, ReactionType, ReactionRequest, ReactionResponse } from '@/lib/types';
 
@@ -829,13 +830,18 @@ export default function AdminGameView() {
                           height: isExpanded ? '100%' : '400%',
                         }}
                       >
-                        <PreviewRenderer
-                          renderMode={game.renderMode}
-                          html={participant.currentCode?.html}
-                          css={participant.currentCode?.css}
-                          jsx={participant.currentCode?.jsx}
-                          className={`w-full h-full border-0 ${isExpanded ? 'pointer-events-auto' : 'pointer-events-none'}`}
-                        />
+                        <SabotageEffectsWrapper
+                          activeSabotages={participant.activeSabotages || []}
+                          className="w-full h-full"
+                        >
+                          <PreviewRenderer
+                            renderMode={game.renderMode}
+                            html={participant.currentCode?.html}
+                            css={participant.currentCode?.css}
+                            jsx={participant.currentCode?.jsx}
+                            className={`w-full h-full border-0 ${isExpanded ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                          />
+                        </SabotageEffectsWrapper>
                       </div>
                     </div>
 
